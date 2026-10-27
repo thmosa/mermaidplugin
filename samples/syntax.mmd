@@ -1,0 +1,19 @@
+flowchart LR
+  %% Syntaxfall som parsern ska klara. Allt här renderar i Mermaid 12.1.
+  %% Utelämnat: %% i radslut (syntaxfel) och strängar över flera rader
+  %% (Mermaid 12.1 tappar då resten av diagrammet utan felmeddelande).
+  A-->B
+  B---C
+  C-.->D
+  D==>E
+  E-->|ja|F
+  F-- text -->G
+  my-node-->other-node
+  P["a;b"] --> Q
+  Q -->|x;y| R; R --> S
+  M["`**Fet** och _kursiv_`"] --> N
+  N --> O
+  PCT["50%% rabatt"] --> O
+  subgraph sg ["`**Backend**`"]
+    X --> Y
+  end

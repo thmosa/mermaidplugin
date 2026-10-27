@@ -249,6 +249,14 @@ Spiken är ett fungerande VS Code-tillägg i den här mappen, med Mermaid 12.1.0
 - **Subgrafer utan id** får id:t `subGraphN` av Mermaid, numrerat i den ordning de **stängs**. Parsern gör likadant.
 - **En dold panel har storleken 0.** Anpassningen måste vänta tills panelen får en riktig storlek.
 - Testverktyget kunde inte skicka Ctrl tillsammans med scroll. Zoomen verifierades därför med syntetiska wheel-händelser.
+- **`%%` i radslut är ett syntaxfel i Mermaid 12.1 för flowcharts.** Parsern lämnar därför sådana rader
+  orörda, så att förhandsvisningen visar samma fel som Mermaid.
+- **Strängar över flera rader** (`A["Rad ett` + ny rad + `Rad två"]`), även markdown-strängar, ger i
+  Mermaid 12.1 **inget fel**. I stället tappas resten av diagrammet tyst. Det är dokumenterad syntax och ser
+  ut som ett fel i Mermaid. Parsern stöder syntaxen, så trädet kan visa noder som förhandsvisningen saknar.
+  Bör bevakas med ett kontraktstest och rapporteras till Mermaid.
+- Kontrollen mot riktiga Mermaid hittade båda punkterna ovan. Enhetstesterna kunde inte göra det,
+  eftersom de bara speglar vår egen tolkning. Det är ett starkt argument för automatiska kontraktstester.
 
 ### Inte med i spiken
 

@@ -99,3 +99,62 @@ test('andra diagramtyper markeras som ej stödda', () => {
   assert.equal(m.supported, false);
   assert.equal(filterFlowchart(m, new Set(['n:A'])), 'sequenceDiagram\nA->>B: hej');
 });
+
+// ---------------------------------------------------------------- kända luckor
+
+const edgeList = m => m.edges.map(e => `${e.from}->${e.to}`);
+
+test('länkar utan mellanslag', () => {
+  const m = parseFlowchart('flowchart LR\nA-->B\nB---C\nC-.->D\nD==>E\nE-->|ja|F\nF-- text -->G\nG-->H-->I');
+  assert.deepEqual(edgeList(m), ['A->B', 'B->C', 'C->D', 'D->E', 'E->F', 'F->G', 'G->H', 'H->I']);
+  assert.equal(m.edges[4].label, 'ja');
+  assert.equal(m.edges[5].label, 'text');
+});
+
+test('id med bindestreck följt av länk utan mellanslag', () => {
+  const m = parseFlowchart('flowchart LR\nmy-node-->other-node');
+  assert.deepEqual(edgeList(m), ['my-node->other-node']);
+});
+
+test('semikolon inuti citattecken och kantetiketter delar inte satsen', () => {
+  const m = parseFlowchart('flowchart LR\nA["a;b"] --> B\nB -->|x;y| C; C --> D');
+  assert.deepEqual(edgeList(m), ['A->B', 'B->C', 'C->D']);
+  assert.equal(m.nodes.get('A').label, 'a;b');
+  assert.equal(m.edges[1].label, 'x;y');
+});
+
+test('markdown-sträng: etiketten visas utan formateringstecken', () => {
+  const m = parseFlowchart('flowchart LR\nA["`**Fet** och _kursiv_`"] --> B');
+  assert.equal(m.nodes.get('A').label, 'Fet och kursiv');
+});
+
+test('markdown-sträng över flera rader blir en nod', () => {
+  const src = 'flowchart LR\nA["`Rad ett\nRad två`"] --> B\nB --> C';
+  const m = parseFlowchart(src);
+  assert.deepEqual([...m.nodes.keys()], ['A', 'B', 'C']);
+  assert.equal(m.nodes.get('A').label, 'Rad ett Rad två');
+  assert.deepEqual(edgeList(m), ['A->B', 'B->C']);
+  assert.equal(m.edges[1].line, 3);
+  assert.equal(filterFlowchart(m, new Set()), src);
+  assert.match(filterFlowchart(m, new Set(['n:C'])), /A\["`Rad ett\nRad två`"\] --> B/);
+});
+
+test('subgraf-titel som markdown-sträng', () => {
+  const m = parseFlowchart('flowchart LR\nsubgraph s ["`**Backend**`"]\n  A\nend');
+  assert.equal(m.subgraphs.get('s').title, 'Backend');
+});
+
+test('kommentar i radslut tolkas inte, eftersom Mermaid 12 ger syntaxfel', () => {
+  // Kontrollerat mot Mermaid 12.1: "A --> B %% x" ger Parse error. Raden lämnas orörd
+  // så att förhandsvisningen visar samma fel som Mermaid, även när andra element döljs.
+  const m = parseFlowchart('flowchart LR\nA --> B %% förklaring\nB --> C');
+  assert.deepEqual(edgeList(m), ['B->C']);
+  assert.match(filterFlowchart(m, new Set(['n:C'])), /A --> B %% förklaring/);
+  assert.match(filterFlowchart(m, new Set(['n:B'])), /A --> B %% förklaring/);
+});
+
+test('%% inuti citattecken är ingen kommentar', () => {
+  const m = parseFlowchart('flowchart LR\nA["50%% rabatt"] --> B');
+  assert.deepEqual(edgeList(m), ['A->B']);
+  assert.equal(m.nodes.get('A').label, '50%% rabatt');
+});

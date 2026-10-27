@@ -58,7 +58,7 @@ const CLASS_RE = /:::[\w-]+/y;
 const EDGE_ID = '(?:[\\p{L}\\p{N}_]+@)?';
 const PLAIN_LINK_RE = new RegExp(`${EDGE_ID}[<ox]?(?:-{2,}[>ox]|-{3,}|={2,}[>ox]|={3,}|-\\.+-[>ox]?|~{3,})`, 'uy');
 const PIPE_RE = /\s*\|([^|]*)\|/y;
-const TEXT_LINK_RE = new RegExp(`${EDGE_ID}[<ox]?(--|==|-\\.)\\s+(.+?)\\s+(-{2,}[>ox]?|={2,}[>ox]?|\\.-+[>ox]?)(?=\\s|$)`, 'uy');
+const TEXT_LINK_RE = new RegExp(`${EDGE_ID}[<ox]?(--|==|-\\.)\\s+(.+?)\\s+(-{2,}[>ox]?|={2,}[>ox]?|\\.-+[>ox]?)(?![-=.])`, 'uy');
 
 function skipWs(s: string, i: number): number {
   while (i < s.length && /\s/.test(s[i])) i++;
@@ -91,7 +91,12 @@ function stickyMatch(re: RegExp, s: string, i: number): RegExpExecArray | null {
 }
 
 function cleanLabel(raw: string): string {
-  return raw.replace(/^[\[\](){}>\/\\\s]+|[\[\](){}\/\\\s]+$/g, '').replace(/^"|"$/g, '').replace(/^`|`$/g, '').trim();
+  let label = raw.replace(/^[\[\](){}>\/\\\s]+|[\[\](){}\/\\\s]+$/g, '').replace(/^"|"$/g, '');
+  // Markdown-sträng ("`...`"): visa texten utan fetstil/kursiv-tecken.
+  if (/^`[^]*`$/.test(label)) {
+    label = label.slice(1, -1).replace(/(\*\*|__)(.+?)\1/g, '$2').replace(/([*_])(.+?)\1/g, '$2');
+  }
+  return label.replace(/\s+/g, ' ').trim();
 }
 
 function parseNode(s: string, i: number): { ref: NodeRef; label: string; end: number } | null {
@@ -241,8 +246,15 @@ export function parseFlowchart(text: string): FlowModel {
   }
 
   let headerSeen = false;
-  for (; i < src.length; i++) {
-    const text = src[i];
+  let next = i;
+  for (; i < src.length; i = next) {
+    // En sträng inom citattecken kan sträcka sig över flera rader (t.ex. markdown-strängar).
+    // Då behandlas raderna som en logisk rad; radnumret är där den börjar.
+    let text = src[i];
+    next = i + 1;
+    if (!text.trim().startsWith('%%')) {
+      while ((text.match(/"/g)?.length ?? 0) % 2 === 1 && next < src.length) text += '\n' + src[next++];
+    }
     const trimmed = text.trim();
     const indent = text.slice(0, text.length - text.trimStart().length);
     const sgTmp = stack.length ? stack[stack.length - 1].tmp : undefined;
@@ -257,7 +269,7 @@ export function parseFlowchart(text: string): FlowModel {
       model.supported = /^(flowchart|graph)\b/.test(trimmed);
       push({ kind: 'raw', text });
       if (!model.supported) {
-        for (i++; i < src.length; i++) pending.push({ line: { kind: 'raw', text: src[i] } });
+        for (let k = next; k < src.length; k++) pending.push({ line: { kind: 'raw', text: src[k] } });
         break;
       }
       continue;
