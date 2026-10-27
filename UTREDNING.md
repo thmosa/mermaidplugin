@@ -264,7 +264,7 @@ Spiken är ett fungerande VS Code-tillägg i den här mappen, med Mermaid 12.1.0
 |---|---|---|
 | `npm run test:unit` | Parser och zoom-matematik (rena funktioner) | under 1 s |
 | `npm run test:contract` | Riktiga Mermaid i headless Chrome/Edge via playwright-core | ca 15 s |
-| `npm test` | Allt | ca 15 s |
+| `npm test` | Allt | ca 30 s |
 
 Kontraktstesterna kräver Chrome eller Edge (välj med `MERMAID_TEST_BROWSER=chrome|msedge`). De innehåller:
 - **Inlärningstester** som låser fast Mermaids beteende: SVG-id:n, `rough-node` i handDrawn, kantritning,
