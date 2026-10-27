@@ -62,3 +62,39 @@ test('zoomAt: punkten står still även när skalan begränsas', () => {
   const under = Zoom.toDiagram(view, size, pointer);
   near(Zoom.toScreen(Zoom.zoomAt(view, size, 1000, pointer), size, under), pointer);
 });
+
+const base = { x: 10, y: 20, w: 1000, h: 400 };
+
+test('fit "all": hela diagrammet syns och den begränsande sidan fyller ut minus marginal', () => {
+  const view = Zoom.fit(base, size, 'all');
+  // Bredden begränsar: (800 - 2*PAD) / 1000
+  assert.equal(view.s, (size.w - 2 * Zoom.PAD) / base.w);
+  near(view, { cx: 510, cy: 220 });
+  const left = Zoom.toScreen(view, size, { x: base.x, y: base.y });
+  near(left, { x: Zoom.PAD });
+});
+
+test('fit "all": ett högt diagram begränsas av höjden', () => {
+  const tall = { x: 0, y: 0, w: 100, h: 2000 };
+  assert.equal(Zoom.fit(tall, size, 'all').s, (size.h - 2 * Zoom.PAD) / tall.h);
+});
+
+test('fit "width": fyller bredden och lägger diagrammets överkant vid marginalen', () => {
+  const tall = { x: 0, y: 0, w: 100, h: 2000 };
+  const view = Zoom.fit(tall, size, 'width');
+  assert.equal(view.s, (size.w - 2 * Zoom.PAD) / tall.w);
+  near(Zoom.toScreen(view, size, { x: 0, y: 0 }), { x: Zoom.PAD, y: Zoom.PAD });
+});
+
+test('fit "actual": skala 1 och diagrammet centrerat', () => {
+  near(Zoom.fit(base, size, 'actual'), { cx: 510, cy: 220, s: 1 });
+});
+
+test('fit: ett enormt diagram begränsas till MIN_SCALE', () => {
+  assert.equal(Zoom.fit({ x: 0, y: 0, w: 1e7, h: 1e7 }, size, 'all').s, Zoom.MIN_SCALE);
+});
+
+test('fit: en scen utan storlek (dold panel) ger null så att anroparen kan vänta', () => {
+  assert.equal(Zoom.fit(base, { w: 0, h: 600 }, 'all'), null);
+  assert.equal(Zoom.fit(base, { w: 800, h: 0 }, 'width'), null);
+});
