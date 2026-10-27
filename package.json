@@ -119,7 +119,7 @@
   "scripts": {
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
-    "test": "tsc -p . && node --test test/parser.test.js"
+    "test": "tsc -p . && node --test test/*.test.js"
   },
   "dependencies": {
     "mermaid": "12.1.0"
