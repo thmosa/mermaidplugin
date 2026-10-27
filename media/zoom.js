@@ -69,6 +69,19 @@
     s: view.s,
   });
 
+  /** Ease-out (kubisk) för animeringar; t begränsas till 0..1. */
+  Zoom.ease = t => {
+    const c = Math.min(1, Math.max(0, t));
+    return 1 - Math.pow(1 - c, 3);
+  };
+
+  /** Vy mellan `from` och `to` vid andel k. Skalan interpoleras geometriskt. */
+  Zoom.lerpView = (from, to, k) => ({
+    cx: from.cx + (to.cx - from.cx) * k,
+    cy: from.cy + (to.cy - from.cy) * k,
+    s: from.s * Math.pow(to.s / from.s, k),
+  });
+
   /** Zoomar med `factor` så att diagrampunkten under `pointer` står still på skärmen. */
   Zoom.zoomAt = (view, size, factor, pointer) => {
     const p = Zoom.toDiagram(view, size, pointer);

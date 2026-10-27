@@ -130,3 +130,26 @@ test('anchor: elementets mitt hamnar på angiven skärmpunkt med samma skala', (
   assert.equal(view.s, 1.35);
   near(Zoom.toScreen(view, size, centerOf(nodeBox)), screenPoint);
 });
+
+test('ease: börjar i 0, slutar i 1 och bromsar in (ease-out)', () => {
+  assert.equal(Zoom.ease(0), 0);
+  assert.equal(Zoom.ease(1), 1);
+  assert.ok(Zoom.ease(0.5) > 0.5);
+});
+
+test('ease: värden utanför 0..1 begränsas', () => {
+  assert.equal(Zoom.ease(-1), 0);
+  assert.equal(Zoom.ease(2), 1);
+});
+
+test('lerpView: ändpunkterna ger start- och målvyn', () => {
+  const a = { cx: 0, cy: 0, s: 1 };
+  const b = { cx: 100, cy: -50, s: 4 };
+  near(Zoom.lerpView(a, b, 0), a);
+  near(Zoom.lerpView(a, b, 1), b);
+});
+
+test('lerpView: skalan interpoleras geometriskt så att zoomen känns jämn', () => {
+  const v = Zoom.lerpView({ cx: 0, cy: 0, s: 1 }, { cx: 100, cy: 0, s: 4 }, 0.5);
+  near(v, { cx: 50, s: 2 });
+});
