@@ -46,6 +46,29 @@
     return { cx, cy: base.y + base.h / 2, s };
   };
 
+  Zoom.NODE_MARGIN = 5;
+  Zoom.GROUP_MARGIN = 1.3;
+  Zoom.NODE_FOCUS_MAX = 2.5;
+
+  /**
+   * Vy centrerad på elementrutan `box`. En subgraf visas i sin helhet; en nod
+   * zoomas in till lagom storlek (högst NODE_FOCUS_MAX) men aldrig ut.
+   */
+  Zoom.focus = (view, size, box, kind) => {
+    const fitScale = margin => Math.min(size.w / (box.w * margin), size.h / (box.h * margin));
+    const s = kind === 'node'
+      ? Math.max(view.s, Math.min(fitScale(Zoom.NODE_MARGIN), Zoom.NODE_FOCUS_MAX))
+      : fitScale(Zoom.GROUP_MARGIN);
+    return { cx: box.x + box.w / 2, cy: box.y + box.h / 2, s: Zoom.clampScale(s) };
+  };
+
+  /** Behåller skalan men flyttar vyn så att mitten av `box` hamnar på skärmpunkten `screen`. */
+  Zoom.anchor = (view, size, box, screen) => ({
+    cx: box.x + box.w / 2 - (screen.x - size.w / 2) / view.s,
+    cy: box.y + box.h / 2 - (screen.y - size.h / 2) / view.s,
+    s: view.s,
+  });
+
   /** Zoomar med `factor` så att diagrampunkten under `pointer` står still på skärmen. */
   Zoom.zoomAt = (view, size, factor, pointer) => {
     const p = Zoom.toDiagram(view, size, pointer);

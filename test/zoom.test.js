@@ -98,3 +98,35 @@ test('fit: en scen utan storlek (dold panel) ger null så att anroparen kan vän
   assert.equal(Zoom.fit(base, { w: 0, h: 600 }, 'all'), null);
   assert.equal(Zoom.fit(base, { w: 800, h: 0 }, 'width'), null);
 });
+
+// Ett elements ruta i diagramkoordinater.
+const nodeBox = { x: 300, y: 100, w: 40, h: 20 };
+const groupBox = { x: 0, y: 0, w: 1000, h: 300 };
+const centerOf = b => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
+
+test('focus: elementet hamnar i scenens mitt', () => {
+  const view = Zoom.focus({ cx: 0, cy: 0, s: 1 }, size, groupBox, 'subgraph');
+  near(Zoom.toScreen(view, size, centerOf(groupBox)), { x: size.w / 2, y: size.h / 2 });
+});
+
+test('focus på subgraf: hela gruppen syns med marginal', () => {
+  const view = Zoom.focus({ cx: 0, cy: 0, s: 1 }, size, groupBox, 'subgraph');
+  assert.equal(view.s, Math.min(size.w / (groupBox.w * Zoom.GROUP_MARGIN), size.h / (groupBox.h * Zoom.GROUP_MARGIN)));
+});
+
+test('focus på nod: zoomar in, men högst till NODE_FOCUS_MAX', () => {
+  const tiny = { x: 0, y: 0, w: 1, h: 1 };
+  assert.equal(Zoom.focus({ cx: 0, cy: 0, s: 0.5 }, size, tiny, 'node').s, Zoom.NODE_FOCUS_MAX);
+});
+
+test('focus på nod: zoomar aldrig ut', () => {
+  // Spiken zoomade ut från 5 till 2,5 här.
+  assert.equal(Zoom.focus({ cx: 0, cy: 0, s: 5 }, size, nodeBox, 'node').s, 5);
+});
+
+test('anchor: elementets mitt hamnar på angiven skärmpunkt med samma skala', () => {
+  const screenPoint = { x: 512, y: 401 };
+  const view = Zoom.anchor({ cx: 999, cy: -999, s: 1.35 }, size, nodeBox, screenPoint);
+  assert.equal(view.s, 1.35);
+  near(Zoom.toScreen(view, size, centerOf(nodeBox)), screenPoint);
+});
