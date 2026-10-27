@@ -258,6 +258,26 @@ Spiken är ett fungerande VS Code-tillägg i den här mappen, med Mermaid 12.1.0
 - Kontrollen mot riktiga Mermaid hittade båda punkterna ovan. Enhetstesterna kunde inte göra det,
   eftersom de bara speglar vår egen tolkning. Det är ett starkt argument för automatiska kontraktstester.
 
+### Tester
+
+| Kommando | Vad | Tid |
+|---|---|---|
+| `npm run test:unit` | Parser och zoom-matematik (rena funktioner) | under 1 s |
+| `npm run test:contract` | Riktiga Mermaid i headless Chrome/Edge via playwright-core | ca 15 s |
+| `npm test` | Allt | ca 15 s |
+
+Kontraktstesterna kräver Chrome eller Edge (välj med `MERMAID_TEST_BROWSER=chrome|msedge`). De innehåller:
+- **Inlärningstester** som låser fast Mermaids beteende: SVG-id:n, `rough-node` i handDrawn, kantritning,
+  att ELK och dagre ger samma id:n, och de två kända felen i Mermaid 12.1. Om något av dem slår fel efter
+  en uppgradering av Mermaid har beteendet ändrats.
+- **Kontrakt parser ⇄ Mermaid:** varje exempelfil i `samples/` renderas ofiltrerad, med varje enskilt element
+  dolt, med alla noder i varje subgraf dolda och i fokusläge för varje nod. Varje gång ska Mermaid rita exakt de
+  noder, kanter och subgrafer som parsern säger är synliga.
+
+Alla tester har verifierats att kunna bli röda: inlärningstesterna genom ändrade förväntningar, kontrakten
+genom att återinföra spikens fel med tomma subgrafer. Det första kontraktet fångade **inte** det felet.
+Testerna med dolda subgrafnoder och fokusläge lades till för att täcka luckan.
+
 ### Inte med i spiken
 
 Strategi B (dölja i SVG och behålla layouten), hopfällning av subgrafer, `%% @hide` i källan,

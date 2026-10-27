@@ -119,7 +119,9 @@
   "scripts": {
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
-    "test": "tsc -p . && node --test test/*.test.js"
+    "test": "tsc -p . && node --test test/*.test.js",
+    "test:unit": "tsc -p . && node --test test/parser.test.js test/zoom.test.js",
+    "test:contract": "tsc -p . && node --test test/mermaid.contract.test.js"
   },
   "dependencies": {
     "mermaid": "12.1.0"
@@ -127,6 +129,7 @@
   "devDependencies": {
     "@types/node": "22.20.5",
     "@types/vscode": "1.138.0",
+    "playwright-core": "1.64.0",
     "typescript": "6.0.3"
   }
 }
