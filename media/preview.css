@@ -1,0 +1,99 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--vscode-editor-background, #fff);
+  color: var(--vscode-foreground, #222);
+  font-family: var(--vscode-font-family, system-ui, sans-serif);
+  font-size: var(--vscode-font-size, 13px);
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+#toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--vscode-panel-border, #ddd);
+}
+
+#toolbar button,
+#toolbar select {
+  font: inherit;
+  color: var(--vscode-button-secondaryForeground, #222);
+  background: var(--vscode-button-secondaryBackground, #eee);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+#toolbar button:hover {
+  background: var(--vscode-button-secondaryHoverBackground, #ddd);
+}
+
+#toolbar .sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--vscode-panel-border, #ccc);
+}
+
+#toolbar label {
+  opacity: 0.8;
+}
+
+#zoom-level {
+  min-width: 48px;
+  text-align: right;
+  opacity: 0.8;
+  margin-left: auto;
+}
+
+#stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+#stage.dragging {
+  cursor: grabbing;
+}
+
+#stage svg {
+  display: block;
+}
+
+#stage g.node,
+#stage g.rough-node,
+#stage g.cluster {
+  cursor: pointer;
+}
+
+.mm-selected {
+  filter: drop-shadow(0 0 4px var(--vscode-focusBorder, #0078d4)) drop-shadow(0 0 2px var(--vscode-focusBorder, #0078d4));
+}
+
+#error {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  margin: 0;
+  padding: 8px;
+  white-space: pre-wrap;
+  font-family: var(--vscode-editor-font-family, monospace);
+  color: var(--vscode-errorForeground, #b00);
+  background: var(--vscode-inputValidation-errorBackground, #fee);
+  border: 1px solid var(--vscode-inputValidation-errorBorder, #b00);
+  border-radius: 3px;
+}

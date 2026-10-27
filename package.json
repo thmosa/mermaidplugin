@@ -1,0 +1,132 @@
+{
+  "name": "mermaid-tree",
+  "displayName": "Mermaid Tree (spike)",
+  "description": "Arbetsträd för Mermaid-diagram: dölj noder, kanter och subgrafer och zooma i förhandsvisningen.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.138.0"
+  },
+  "categories": [
+    "Visualization"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:mermaid"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "mermaid",
+        "aliases": [
+          "Mermaid"
+        ],
+        "extensions": [
+          ".mmd",
+          ".mermaid"
+        ]
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "mermaidTree.structure",
+          "name": "Mermaid-struktur"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "mermaidTree.structure",
+        "contents": "Öppna en .mmd- eller .mermaid-fil för att se diagrammets struktur.\n[Öppna förhandsvisning](command:mermaidTree.openPreview)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "mermaidTree.openPreview",
+        "title": "Öppna förhandsvisning",
+        "category": "Mermaid Tree",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "mermaidTree.showAll",
+        "title": "Visa allt",
+        "category": "Mermaid Tree",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "mermaidTree.focusNeighbors",
+        "title": "Visa bara denna nod och dess grannar",
+        "category": "Mermaid Tree",
+        "icon": "$(target)"
+      },
+      {
+        "command": "mermaidTree.hideItem",
+        "title": "Dölj",
+        "category": "Mermaid Tree",
+        "icon": "$(eye-closed)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "mermaidTree.openPreview",
+          "when": "resourceLangId == mermaid",
+          "group": "navigation"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "mermaidTree.openPreview",
+          "when": "view == mermaidTree.structure",
+          "group": "navigation@1"
+        },
+        {
+          "command": "mermaidTree.showAll",
+          "when": "view == mermaidTree.structure",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "mermaidTree.focusNeighbors",
+          "when": "view == mermaidTree.structure && viewItem == node",
+          "group": "inline"
+        },
+        {
+          "command": "mermaidTree.focusNeighbors",
+          "when": "view == mermaidTree.structure && viewItem == node"
+        },
+        {
+          "command": "mermaidTree.hideItem",
+          "when": "view == mermaidTree.structure && viewItem =~ /^(node|edge|subgraph)$/"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "mermaidTree.focusNeighbors",
+          "when": "false"
+        },
+        {
+          "command": "mermaidTree.hideItem",
+          "when": "false"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p .",
+    "test": "tsc -p . && node --test test/parser.test.js"
+  },
+  "dependencies": {
+    "mermaid": "12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/vscode": "1.138.0",
+    "typescript": "6.0.3"
+  }
+}

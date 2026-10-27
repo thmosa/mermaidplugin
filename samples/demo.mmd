@@ -1,0 +1,41 @@
+flowchart LR
+  %% Exempeldiagram för att prova arbetsträdet och zoomen
+  user((Användare))
+
+  subgraph frontend [Frontend]
+    web>Webbapp]
+    mobile{{Mobilapp}}
+  end
+
+  subgraph backend [Backend]
+    direction TB
+    gw[API-gateway] --> auth(Auth-tjänst)
+    gw --> orders[Ordertjänst]
+    gw --> search[Söktjänst]
+    subgraph data [Datalager]
+      db[(Postgres)]
+      cache[(Redis)]
+      index[(Sökindex)]
+    end
+    orders --> db
+    orders --> cache
+    search --> index
+    auth --> db
+  end
+
+  subgraph ops [Drift]
+    log[Loggtjänst]
+    metrics[Metrics]
+    alert{Larm?}
+  end
+
+  user --> web & mobile
+  web & mobile -->|HTTPS| gw
+  gw -.->|loggar| log
+  orders -.-> metrics
+  metrics --> alert
+  alert -- ja --> user
+
+  classDef store fill:#e8f0fe,stroke:#4a6fd1
+  class db,cache,index store
+  style alert fill:#fde2e1
