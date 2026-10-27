@@ -14,9 +14,6 @@
   const layoutSelect = document.getElementById('layout');
   const lookSelect = document.getElementById('look');
 
-  const MIN_SCALE = 0.05;
-  const MAX_SCALE = 20;
-  const PAD = 24;
   // handDrawn-stilen ger noderna klassen rough-node i stället för node.
   const NODE_SEL = 'g.node, g.rough-node';
 
@@ -29,68 +26,51 @@
   let animation = 0;
   let needsFit = false;
 
-  const clamp = s => Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
   const size = () => ({ w: stage.clientWidth, h: stage.clientHeight });
 
-  // ------------------------------------------------------------ vy-matematik
+  // ------------------------------------------------------------ koppling DOM ⇄ zoom.js
+
+  /** Skärmpunkt relativt scenen, från klientkoordinater. */
+  function local(clientX, clientY) {
+    const r = stage.getBoundingClientRect();
+    return { x: clientX - r.left, y: clientY - r.top };
+  }
 
   function apply() {
     if (!svg || !view) return;
-    const { w, h } = size();
-    const vw = w / view.s;
-    const vh = h / view.s;
-    svg.setAttribute('viewBox', `${view.cx - vw / 2} ${view.cy - vh / 2} ${vw} ${vh}`);
+    const b = Zoom.viewBox(view, size());
+    svg.setAttribute('viewBox', `${b.x} ${b.y} ${b.w} ${b.h}`);
     zoomLabel.textContent = `${Math.round(view.s * 100)} %`;
   }
 
-  function toDiagram(clientX, clientY) {
-    const r = stage.getBoundingClientRect();
-    const { w, h } = size();
-    return { x: view.cx + (clientX - r.left - w / 2) / view.s, y: view.cy + (clientY - r.top - h / 2) / view.s };
-  }
-
+  /** Elementets ruta i diagramkoordinater, mätt från hur det ritas just nu. */
   function elementBox(el) {
     const r = el.getBoundingClientRect();
-    const a = toDiagram(r.left, r.top);
-    const b = toDiagram(r.right, r.bottom);
+    const a = Zoom.toDiagram(view, size(), local(r.left, r.top));
+    const b = Zoom.toDiagram(view, size(), local(r.right, r.bottom));
     return { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
   }
 
-  function fitView(mode) {
-    const { w, h } = size();
-    if (mode === 'width') {
-      const s = clamp((w - 2 * PAD) / base.w);
-      return { cx: base.x + base.w / 2, cy: base.y + (h / 2 - PAD) / s, s };
-    }
-    if (mode === 'actual') return { cx: base.x + base.w / 2, cy: base.y + base.h / 2, s: 1 };
-    const s = clamp(Math.min((w - 2 * PAD) / base.w, (h - 2 * PAD) / base.h));
-    return { cx: base.x + base.w / 2, cy: base.y + base.h / 2, s };
-  }
-
   function animateTo(target, ms = 280) {
+    if (!target) return;
     cancelAnimationFrame(animation);
     const from = { ...view };
     const t0 = performance.now();
     const step = now => {
-      const t = Math.min(1, (now - t0) / ms);
-      const k = 1 - Math.pow(1 - t, 3);
-      view = {
-        cx: from.cx + (target.cx - from.cx) * k,
-        cy: from.cy + (target.cy - from.cy) * k,
-        s: from.s * Math.pow(target.s / from.s, k),
-      };
+      const t = (now - t0) / ms;
+      view = Zoom.lerpView(from, target, Zoom.ease(t));
       apply();
       if (t < 1) animation = requestAnimationFrame(step);
     };
     animation = requestAnimationFrame(step);
   }
 
+  const fitTo = mode => { if (view && base) animateTo(Zoom.fit(base, size(), mode)); };
+
   function zoomAt(factor, clientX, clientY) {
     if (!view) return;
     cancelAnimationFrame(animation);
-    const p = toDiagram(clientX, clientY);
-    const s = clamp(view.s * factor);
-    view = { cx: p.x - (p.x - view.cx) * view.s / s, cy: p.y - (p.y - view.cy) * view.s / s, s };
+    view = Zoom.zoomAt(view, size(), factor, local(clientX, clientY));
     apply();
   }
 
@@ -143,13 +123,7 @@
     selected = { kind, id };
     const el = highlight();
     if (!el || !view) return;
-    const box = elementBox(el);
-    const { w, h } = size();
-    // Noder visas i lagom storlek, subgrafer så att hela gruppen syns.
-    const margin = kind === 'node' ? 5 : 1.3;
-    let s = Math.min(w / (box.w * margin), h / (box.h * margin));
-    if (kind === 'node') s = Math.min(Math.max(s, view.s), 2.5);
-    animateTo({ cx: box.x + box.w / 2, cy: box.y + box.h / 2, s: clamp(s) });
+    animateTo(Zoom.focus(view, size(), elementBox(el), kind));
   }
 
   // ------------------------------------------------------------ zoomen behålls vid omrendering
@@ -185,10 +159,9 @@
 
   function restoreAnchor(anchor) {
     if (!anchor) {
-      view = fitView('all');
-      // En dold panel har storleken 0; anpassa igen när den får en riktig storlek.
-      const { w, h } = size();
-      needsFit = w === 0 || h === 0;
+      // En dold panel har storleken 0; då anpassar ResizeObserver när den får en riktig storlek.
+      view = Zoom.fit(base, size(), 'all');
+      needsFit = !view;
       apply();
       return;
     }
@@ -196,10 +169,7 @@
     apply();
     const el = anchor.target && findElement(anchor.target.kind, anchor.target.id);
     if (!el) return;
-    const box = elementBox(el);
-    const { w, h } = size();
-    view.cx = box.x + box.w / 2 - (anchor.sx - w / 2) / view.s;
-    view.cy = box.y + box.h / 2 - (anchor.sy - h / 2) / view.s;
+    view = Zoom.anchor(view, size(), elementBox(el), { x: anchor.sx, y: anchor.sy });
     apply();
   }
 
@@ -295,16 +265,16 @@
     if (e.target instanceof HTMLSelectElement) return;
     if (e.key === '+' || e.key === '=') zoomCenter(1.25);
     else if (e.key === '-') zoomCenter(0.8);
-    else if (e.key === '0') animateTo(fitView('all'));
-    else if (e.key === '1') animateTo(fitView('actual'));
-    else if (e.key === 'w') animateTo(fitView('width'));
+    else if (e.key === '0') fitTo('all');
+    else if (e.key === '1') fitTo('actual');
+    else if (e.key === 'w') fitTo('width');
     else return;
     e.preventDefault();
   });
 
   new ResizeObserver(() => {
     const { w, h } = size();
-    if (needsFit && base && w > 0 && h > 0) { view = fitView('all'); needsFit = false; }
+    if (needsFit && base) { view = Zoom.fit(base, { w, h }, 'all'); needsFit = !view; }
     apply();
   }).observe(stage);
 
@@ -313,9 +283,9 @@
     if (!action || !view) return;
     if (action === 'in') zoomCenter(1.25);
     if (action === 'out') zoomCenter(0.8);
-    if (action === 'fit') animateTo(fitView('all'));
-    if (action === 'width') animateTo(fitView('width'));
-    if (action === 'actual') animateTo(fitView('actual'));
+    if (action === 'fit') fitTo('all');
+    if (action === 'width') fitTo('width');
+    if (action === 'actual') fitTo('actual');
     if (action === 'selection' && selected) focusElement(selected.kind, selected.id);
   });
   for (const sel of [layoutSelect, lookSelect]) sel.addEventListener('change', () => render(lastText));
@@ -329,5 +299,5 @@
   vscode.postMessage({ type: 'ready' });
 
   // Exponeras för test i webbläsare.
-  window.__preview = { get view() { return view; }, get svg() { return svg; }, findElement, focusElement, fitView, render };
+  window.__preview = { get view() { return view; }, get svg() { return svg; }, findElement, focusElement, render };
 })();

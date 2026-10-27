@@ -252,6 +252,7 @@ ${TOOLBAR_HTML}
 <div id="stage"></div>
 <pre id="error" hidden></pre>
 <script nonce="${nonce}" src="${uri(mermaidDist, 'mermaid.min.js')}"></script>
+<script nonce="${nonce}" src="${uri(media, 'zoom.js')}"></script>
 <script nonce="${nonce}" src="${uri(media, 'preview.js')}"></script>
 </body>
 </html>`;
