@@ -33,3 +33,32 @@ test('toScreen är inversen av toDiagram', () => {
   const p = { x: 123, y: 456 };
   near(Zoom.toScreen(view, size, Zoom.toDiagram(view, size, p)), p);
 });
+
+test('zoomAt: punkten under pekaren står still', () => {
+  const view = { cx: 100, cy: 50, s: 1 };
+  const pointer = { x: 650, y: 120 };
+  const under = Zoom.toDiagram(view, size, pointer);
+  const zoomed = Zoom.zoomAt(view, size, 1.5, pointer);
+  near(Zoom.toScreen(zoomed, size, under), pointer);
+});
+
+test('zoomAt: skalan multipliceras med faktorn', () => {
+  assert.equal(Zoom.zoomAt({ cx: 0, cy: 0, s: 2 }, size, 0.5, { x: 400, y: 300 }).s, 1);
+});
+
+test('zoomAt i scenens mitt ändrar inte mittpunkten', () => {
+  near(Zoom.zoomAt({ cx: 7, cy: 9, s: 1 }, size, 3, { x: 400, y: 300 }), { cx: 7, cy: 9, s: 3 });
+});
+
+test('zoomAt: skalan begränsas till MIN_SCALE och MAX_SCALE', () => {
+  const p = { x: 400, y: 300 };
+  assert.equal(Zoom.zoomAt({ cx: 0, cy: 0, s: 1 }, size, 1000, p).s, Zoom.MAX_SCALE);
+  assert.equal(Zoom.zoomAt({ cx: 0, cy: 0, s: 1 }, size, 0.0001, p).s, Zoom.MIN_SCALE);
+});
+
+test('zoomAt: punkten står still även när skalan begränsas', () => {
+  const view = { cx: 0, cy: 0, s: 1 };
+  const pointer = { x: 100, y: 500 };
+  const under = Zoom.toDiagram(view, size, pointer);
+  near(Zoom.toScreen(Zoom.zoomAt(view, size, 1000, pointer), size, under), pointer);
+});

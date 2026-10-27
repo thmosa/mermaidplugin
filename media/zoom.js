@@ -24,6 +24,18 @@
     y: (p.y - view.cy) * view.s + size.h / 2,
   });
 
+  Zoom.MIN_SCALE = 0.05;
+  Zoom.MAX_SCALE = 20;
+  Zoom.clampScale = s => Math.min(Zoom.MAX_SCALE, Math.max(Zoom.MIN_SCALE, s));
+
+  /** Zoomar med `factor` så att diagrampunkten under `pointer` står still på skärmen. */
+  Zoom.zoomAt = (view, size, factor, pointer) => {
+    const p = Zoom.toDiagram(view, size, pointer);
+    const s = Zoom.clampScale(view.s * factor);
+    const k = view.s / s;
+    return { cx: p.x - (p.x - view.cx) * k, cy: p.y - (p.y - view.cy) * k, s };
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = Zoom;
   else root.Zoom = Zoom;
 })(this);
