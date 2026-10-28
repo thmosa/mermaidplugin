@@ -5,6 +5,7 @@ const path = require('node:path');
 const { chromium } = require('playwright-core');
 
 const MERMAID_JS = path.join(__dirname, '..', '..', 'node_modules', 'mermaid', 'dist', 'mermaid.min.js');
+const LABELS_JS = path.join(__dirname, '..', '..', 'media', 'labels.js');
 
 async function launch() {
   const channels = process.env.MERMAID_TEST_BROWSER ? [process.env.MERMAID_TEST_BROWSER] : ['chrome', 'msedge'];
@@ -57,7 +58,42 @@ async function openMermaid() {
     }, { text, config, renderId });
   }
 
-  return { render, close: () => browser.close() };
+  await page.addScriptTag({ path: LABELS_JS });
+
+  /**
+   * Ritar text i DOM:en och räknar par av kantetiketter som överlappar,
+   * före och efter Labels.spread: { ok, error, labels, before, after }.
+   */
+  async function labelOverlaps(text, config = {}) {
+    const renderId = `mm${++seq}`;
+    return page.evaluate(async ({ text, config, renderId }) => {
+      mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', ...config });
+      const count = svg => {
+        const b = [...svg.querySelectorAll('g.edgeLabel')]
+          .filter(g => g.textContent.trim()).map(g => g.getBoundingClientRect()).filter(r => r.width > 0);
+        let n = 0;
+        for (let i = 0; i < b.length; i++) for (let j = i + 1; j < b.length; j++)
+          if (b[i].left < b[j].right && b[j].left < b[i].right && b[i].top < b[j].bottom && b[j].top < b[i].bottom) n++;
+        return { labels: b.length, n };
+      };
+      try {
+        const { svg } = await mermaid.render(renderId, text);
+        const host = document.createElement('div');
+        host.innerHTML = svg;
+        document.body.append(host);
+        const el = host.querySelector('svg');
+        const before = count(el);
+        Labels.spread(el, Labels.axisFor(text));
+        const after = count(el);
+        host.remove();
+        return { ok: true, error: null, labels: before.labels, before: before.n, after: after.n };
+      } catch (e) {
+        return { ok: false, error: String(e && e.message || e), labels: 0, before: 0, after: 0 };
+      }
+    }, { text, config, renderId });
+  }
+
+  return { render, labelOverlaps, close: () => browser.close() };
 }
 
 module.exports = { openMermaid };

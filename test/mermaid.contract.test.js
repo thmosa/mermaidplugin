@@ -69,6 +69,32 @@ test('känt Mermaid-fel: sträng över flera rader tappar resten av diagrammet u
   assert.deepEqual(r.nodes.map(n => n.id), ['ML']);
 });
 
+test('känt Mermaid-fel: ELK lägger kantetiketter ovanpå varandra när kanter korsar in i en subgraf', async () => {
+  const r = await mm.labelOverlaps(CROSSING, { layout: 'elk' });
+  assert.equal(r.ok, true, r.error);
+  assert.ok(r.before > 0, `väntade överlapp, fick ${JSON.stringify(r)}`);
+});
+
+// ---------------------------------------------------------------- kontrakt: etiketter isär
+
+const CROSSING = 'flowchart LR\n subgraph f\n a\n b\n end\n subgraph g\n x --> y\n end\n a -->|HTTPS| x\n b -->|HTTPS| x';
+
+for (const layout of ['elk', 'dagre', 'elk.stress']) {
+  test(`kontrakt: inga kantetiketter överlappar efter Labels.spread (${layout})`, async () => {
+    const cases = [
+      CROSSING,
+      'flowchart LR\n subgraph f\n a\n b\n c\n end\n subgraph g\n direction TB\n x --> y\n end\n a & b & c -->|API| x',
+      'flowchart TB\n subgraph f\n a\n b\n end\n subgraph g\n x\n end\n a -->|ett| x\n b -->|två| x',
+      ...samples.map(s => s.text),
+    ];
+    for (const text of cases) {
+      const r = await mm.labelOverlaps(text, { layout });
+      assert.equal(r.ok, true, r.error);
+      assert.equal(r.after, 0, `${layout}: ${JSON.stringify(r)}\n${text}`);
+    }
+  });
+}
+
 // ---------------------------------------------------------------- kontrakt: parser ⇄ Mermaid
 
 const fs = require('node:fs');
@@ -76,8 +102,10 @@ const path = require('node:path');
 const { parseFlowchart, filterFlowchart, visibility, nodeKey, edgeKey, subgraphKey } = require('../out/parser');
 
 const SAMPLES = path.join(__dirname, '..', 'samples');
+// Bara diagram som parsern stöder (flowchart/graph); andra typer har inget träd att jämföra.
 const samples = fs.readdirSync(SAMPLES).filter(f => f.endsWith('.mmd'))
-  .map(f => ({ name: f, text: fs.readFileSync(path.join(SAMPLES, f), 'utf8') }));
+  .map(f => ({ name: f, text: fs.readFileSync(path.join(SAMPLES, f), 'utf8') }))
+  .filter(s => parseFlowchart(s.text).supported);
 
 /** Det parsern säger ska synas när `hidden` är dolda. */
 function expected(model, hidden) {

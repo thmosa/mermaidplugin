@@ -194,6 +194,7 @@
       const anchor = captureAnchor();
       stage.innerHTML = code;
       svg = stage.querySelector('svg');
+      Labels.spread(svg, Labels.axisFor(text));
       const vb = (svg.getAttribute('viewBox') || '0 0 100 100').split(/[\s,]+/).map(Number);
       base = { x: vb[0], y: vb[1], w: vb[2] || 1, h: vb[3] || 1 };
       svg.removeAttribute('style');

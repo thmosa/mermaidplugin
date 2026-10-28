@@ -255,14 +255,19 @@ Spiken är ett fungerande VS Code-tillägg i den här mappen, med Mermaid 12.1.0
   Mermaid 12.1 **inget fel**. I stället tappas resten av diagrammet tyst. Det är dokumenterad syntax och ser
   ut som ett fel i Mermaid. Parsern stöder syntaxen, så trädet kan visa noder som förhandsvisningen saknar.
   Bör bevakas med ett kontraktstest och rapporteras till Mermaid.
-- Kontrollen mot riktiga Mermaid hittade båda punkterna ovan. Enhetstesterna kunde inte göra det,
+- **ELK lägger kantetiketter ovanpå varandra** när flera kanter går in i samma nod från en annan subgraf
+  (i demo.mmd: `web & mobile -->|HTTPS| gw`). Dagre har inte felet, och ingen ELK-inställning i Mermaids
+  config löste det i alla fall. Förhandsvisningen flyttar därför isär överlappande etiketter efter ritningen
+  (`media/labels.js`): lodrätt för LR/RL, vågrätt för TB/TD/BT. Ett egenskapstest med slumpade rutor hittade
+  att den första versionen kunde knuffa grupper fram och tillbaka i all oändlighet.
+- Kontrollen mot riktiga Mermaid hittade de två punkterna om `%%` och strängar över flera rader. Enhetstesterna kunde inte göra det,
   eftersom de bara speglar vår egen tolkning. Det är ett starkt argument för automatiska kontraktstester.
 
 ### Tester
 
 | Kommando | Vad | Tid |
 |---|---|---|
-| `npm run test:unit` | Parser och zoom-matematik (rena funktioner) | under 1 s |
+| `npm run test:unit` | Parser, zoom-matematik och etikettplacering (rena funktioner) | under 1 s |
 | `npm run test:contract` | Riktiga Mermaid i headless Chrome/Edge via playwright-core | ca 15 s |
 | `npm test` | Allt | ca 30 s |
 
@@ -272,7 +277,8 @@ Kontraktstesterna kräver Chrome eller Edge (välj med `MERMAID_TEST_BROWSER=chr
   en uppgradering av Mermaid har beteendet ändrats.
 - **Kontrakt parser ⇄ Mermaid:** varje exempelfil i `samples/` renderas ofiltrerad, med varje enskilt element
   dolt, med alla noder i varje subgraf dolda och i fokusläge för varje nod. Varje gång ska Mermaid rita exakt de
-  noder, kanter och subgrafer som parsern säger är synliga.
+  noder, kanter och subgrafer som parsern säger är synliga. Exempelfiler som inte är flowcharts hoppas över.
+- **Kontrakt etiketter:** efter `Labels.spread` överlappar inga kantetiketter, med ELK, dagre och elk.stress.
 
 Alla tester har verifierats att kunna bli röda: inlärningstesterna genom ändrade förväntningar, kontrakten
 genom att återinföra spikens fel med tomma subgrafer. Det första kontraktet fångade **inte** det felet.

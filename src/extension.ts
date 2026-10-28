@@ -253,6 +253,7 @@ ${TOOLBAR_HTML}
 <pre id="error" hidden></pre>
 <script nonce="${nonce}" src="${uri(mermaidDist, 'mermaid.min.js')}"></script>
 <script nonce="${nonce}" src="${uri(media, 'zoom.js')}"></script>
+<script nonce="${nonce}" src="${uri(media, 'labels.js')}"></script>
 <script nonce="${nonce}" src="${uri(media, 'preview.js')}"></script>
 </body>
 </html>`;
