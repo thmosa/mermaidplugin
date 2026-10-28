@@ -1,0 +1,21 @@
+
+stateDiagram-v2
+
+state initialize {
+    [*] --> Wait
+    Wait --> Moving
+
+    Still --> Moving
+    Moving --> Still
+    Moving --> Crash   
+    Crash --> [*]
+}
+
+state progressing {
+    [*] --> WaitingProgress
+    WaitingProgress --> validateStuff: 
+    validateStuff --> CheckStuff: 
+    CheckStuff --> WaitingProgress: 
+}
+
+initialize --> progressing: Enqueue
