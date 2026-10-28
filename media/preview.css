@@ -75,7 +75,8 @@ body {
 
 #stage g.node,
 #stage g.rough-node,
-#stage g.cluster {
+#stage g.cluster,
+#stage g.statediagram-cluster {
   cursor: pointer;
 }
 

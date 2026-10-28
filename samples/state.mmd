@@ -1,0 +1,42 @@
+stateDiagram-v2
+  %% Exempel för att prova arbetsträdet med state diagram
+  direction LR
+  classDef warn fill:#fde2e1
+
+  [*] --> Inaktiv
+  Inaktiv --> Ansluter : starta
+  state "Ansluter till server" as Ansluter
+  Ansluter --> Ansluten : ok
+  Ansluter --> Fel : timeout
+
+  state Ansluten {
+    [*] --> Väntar
+    Väntar --> Tar_emot : data
+    Tar_emot --> Väntar
+    state Tar_emot {
+      [*] --> Läser
+      Läser --> Tolkar
+      Tolkar --> [*]
+    }
+    Väntar --> [*] : stäng
+  }
+
+  state kontroll <<choice>>
+  Ansluten --> kontroll
+  kontroll --> Inaktiv : normalt
+  kontroll --> Fel : avbrott
+
+  state Fel {
+    Loggar --> Väntar_på_retry
+    --
+    Larmar
+  }
+  Fel --> Ansluter : retry
+  Fel --> [*]
+
+  note right of Inaktiv : Ingen anslutning
+  note left of Fel
+    Försöker igen
+    efter en stund
+  end note
+  class Fel warn

@@ -59,3 +59,9 @@ test('axisFor: lodrät stapling för LR/RL, vågrät för TB/TD/BT', () => {
   assert.equal(Labels.axisFor('graph BT'), 'x');
   assert.equal(Labels.axisFor('flowchart\n  A --> B'), 'x');
 });
+
+test('axisFor: state diagram läser "direction", annars uppifrån och ned', () => {
+  assert.equal(Labels.axisFor('stateDiagram-v2\n  direction LR\n  A --> B'), 'y');
+  assert.equal(Labels.axisFor('stateDiagram-v2\n  A --> B'), 'x');
+  assert.equal(Labels.axisFor('stateDiagram\n  direction TB'), 'x');
+});

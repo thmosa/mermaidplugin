@@ -16,6 +16,9 @@
 
   // handDrawn-stilen ger noderna klassen rough-node i stället för node.
   const NODE_SEL = 'g.node, g.rough-node';
+  // Flowchart: g.cluster med id <renderId>-<id>. State diagram: g.statediagram-cluster med nod-liknande id.
+  const CLUSTER_SEL = 'g.cluster, g.statediagram-cluster';
+  const NODE_ID_RE = /-(?:flowchart|state)-(.+)-\d+$/;
 
   let svg = null;
   let base = null;            // diagrammets ursprungliga viewBox {x,y,w,h}
@@ -88,11 +91,13 @@
     if (kind === 'node') {
       const byData = [...svg.querySelectorAll(NODE_SEL)].find(g => g.dataset.id === id);
       if (byData) return byData;
-      const re = new RegExp(`-flowchart-${reEscape(id)}-\\d+$`);
+      const re = new RegExp(`-(?:flowchart|state)-${reEscape(id)}-\\d+$`);
       return [...svg.querySelectorAll(NODE_SEL)].find(g => re.test(g.id)) || null;
     }
     if (kind === 'subgraph') {
-      return [...svg.querySelectorAll('g.cluster')].find(g => g.dataset.id === id || g.id === id || g.id.endsWith('-' + id)) || null;
+      const re = new RegExp(`-state-${reEscape(id)}-\\d+$`);
+      return [...svg.querySelectorAll(CLUSTER_SEL)]
+        .find(g => g.dataset.id === id || g.id === id || g.id.endsWith('-' + id) || re.test(g.id)) || null;
     }
     return null;
   }
@@ -100,12 +105,12 @@
   function identify(el) {
     const node = el.closest(NODE_SEL);
     if (node) {
-      const id = node.dataset.id || (/-flowchart-(.+)-\d+$/.exec(node.id) || [])[1];
+      const id = node.dataset.id || (NODE_ID_RE.exec(node.id) || [])[1];
       if (id) return { kind: 'node', id };
     }
-    const cluster = el.closest('g.cluster');
+    const cluster = el.closest(CLUSTER_SEL);
     if (cluster) {
-      const id = cluster.dataset.id || cluster.id.replace(/^mmd\d+-/, '');
+      const id = cluster.dataset.id || (NODE_ID_RE.exec(cluster.id) || [])[1] || cluster.id.replace(/^mmd\d+-/, '');
       if (id) return { kind: 'subgraph', id };
     }
     return null;

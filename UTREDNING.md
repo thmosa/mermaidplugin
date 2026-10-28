@@ -260,6 +260,16 @@ Spiken är ett fungerande VS Code-tillägg i den här mappen, med Mermaid 12.1.0
   config löste det i alla fall. Förhandsvisningen flyttar därför isär överlappande etiketter efter ritningen
   (`media/labels.js`): lodrätt för LR/RL, vågrätt för TB/TD/BT. Ett egenskapstest med slumpade rutor hittade
   att den första versionen kunde knuffa grupper fram och tillbaka i all oändlighet.
+- **State diagram** (`src/stateParser.ts`) ger samma modell som flowchart: tillstånd är noder, övergångar
+  kanter och sammansatta tillstånd subgrafer. Trädet, synligheten och fokusläget fungerar därför oförändrade.
+  Fakta om Mermaid 12.1, låsta i inlärningstester:
+  - Tillstånd har id:t `<renderId>-state-<id>-<n>`. `[*]` blir `root_start`/`root_end`, eller
+    `<Sammansatt>_start`/`_end` inuti ett sammansatt tillstånd.
+  - Sammansatta tillstånd ritas som `g.statediagram-cluster` och inte som `g.cluster`. Parallella regioner (`--`)
+    ger extra kluster med slumpade id:n.
+  - `state B` utan något mer ritas inte. `B`, `B : text` och `state "Text" as B` ritas.
+  - Kontraktstesterna hittade två krascher i filtret: en `--` mot en tom region ("No such shape: divider"),
+    och `class`/`note` på ett tillstånd som inte längre ritas ("No such shape: undefined").
 - Kontrollen mot riktiga Mermaid hittade de två punkterna om `%%` och strängar över flera rader. Enhetstesterna kunde inte göra det,
   eftersom de bara speglar vår egen tolkning. Det är ett starkt argument för automatiska kontraktstester.
 
@@ -267,7 +277,7 @@ Spiken är ett fungerande VS Code-tillägg i den här mappen, med Mermaid 12.1.0
 
 | Kommando | Vad | Tid |
 |---|---|---|
-| `npm run test:unit` | Parser, zoom-matematik och etikettplacering (rena funktioner) | under 1 s |
+| `npm run test:unit` | Parsrar (flowchart, state), zoom-matematik och etikettplacering (rena funktioner) | under 1 s |
 | `npm run test:contract` | Riktiga Mermaid i headless Chrome/Edge via playwright-core | ca 15 s |
 | `npm test` | Allt | ca 30 s |
 

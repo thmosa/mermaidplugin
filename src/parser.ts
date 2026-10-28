@@ -9,6 +9,8 @@ export interface FlowNode {
   line: number;
   /** Innersta subgrafen noden tillhör, om någon. */
   subgraph?: string;
+  /** State diagram: start- eller slutpunkt ([*]). Ritas bara om någon synlig övergång rör den. */
+  pseudo?: 'start' | 'end';
 }
 
 export interface FlowEdge {
@@ -30,12 +32,16 @@ export interface FlowSubgraph {
   parent?: string;
 }
 
-export interface FlowModel {
+/** Det som trädet, synligheten och grannsökningen behöver, oavsett diagramtyp. */
+export interface DiagramModel {
   supported: boolean;
   diagramType: string;
   nodes: Map<string, FlowNode>;
   edges: FlowEdge[];
   subgraphs: Map<string, FlowSubgraph>;
+}
+
+export interface FlowModel extends DiagramModel {
   lines: Line[];
 }
 
@@ -90,7 +96,7 @@ function stickyMatch(re: RegExp, s: string, i: number): RegExpExecArray | null {
   return re.exec(s);
 }
 
-function cleanLabel(raw: string): string {
+export function cleanLabel(raw: string): string {
   let label = raw.replace(/^[\[\](){}>\/\\\s]+|[\[\](){}\/\\\s]+$/g, '').replace(/^"|"$/g, '');
   // Markdown-sträng ("`...`"): visa texten utan fetstil/kursiv-tecken.
   if (/^`[^]*`$/.test(label)) {
@@ -382,14 +388,16 @@ export interface Visibility {
   isSubgraphHidden(id: string): boolean;
 }
 
-export function visibility(model: FlowModel, hidden: ReadonlySet<string>): Visibility {
+export function visibility(model: DiagramModel, hidden: ReadonlySet<string>): Visibility {
   const sgHidden = (id: string | undefined): boolean => {
     for (let cur = id; cur; cur = model.subgraphs.get(cur)?.parent) {
       if (hidden.has(subgraphKey(cur))) return true;
     }
     return false;
   };
-  const nodeHidden = (id: string) => hidden.has(nodeKey(id)) || sgHidden(model.nodes.get(id)?.subgraph);
+  // En kant kan gå till en subgraf (t.ex. ett sammansatt tillstånd); den döljs med subgrafen.
+  const nodeHidden = (id: string) =>
+    hidden.has(nodeKey(id)) || sgHidden(model.nodes.get(id)?.subgraph) || (model.subgraphs.has(id) && sgHidden(id));
   return {
     isNodeHidden: nodeHidden,
     isEdgeHidden: e => hidden.has(edgeKey(e.key)) || nodeHidden(e.from) || nodeHidden(e.to),
@@ -478,7 +486,7 @@ export function filterFlowchart(model: FlowModel, hidden: ReadonlySet<string>): 
 }
 
 /** Alla noder inom `depth` steg från `id`, oavsett kantriktning. */
-export function neighborhood(model: FlowModel, id: string, depth: number): Set<string> {
+export function neighborhood(model: DiagramModel, id: string, depth: number): Set<string> {
   const adj = new Map<string, string[]>();
   for (const e of model.edges) {
     (adj.get(e.from) ?? adj.set(e.from, []).get(e.from)!).push(e.to);

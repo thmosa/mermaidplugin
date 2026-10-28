@@ -39,21 +39,30 @@ async function openMermaid() {
       try {
         const { svg } = await mermaid.render(renderId, text);
         const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
-        const nodes = [...doc.querySelectorAll('g.node, g.rough-node')].map(g => ({
-          id: (new RegExp(`^${renderId}-flowchart-(.+)-\\d+$`).exec(g.id) || [])[1] ?? null,
+        const nodeId = new RegExp(`^${renderId}-(?:flowchart|state)-(.+)-\\d+$`);
+        const all = [...doc.querySelectorAll('g.node, g.rough-node')].map(g => ({
+          id: (nodeId.exec(g.id) || [])[1] ?? null,
           domId: g.id,
           dataId: g.getAttribute('data-id'),
           classes: g.getAttribute('class'),
         }));
-        const clusters = [...doc.querySelectorAll('g.cluster')].map(g => ({
-          id: g.id.startsWith(renderId + '-') ? g.id.slice(renderId.length + 1) : g.id,
-          domId: g.id,
-        }));
-        const edges = doc.querySelectorAll('g.edgePaths > path').length;
-        return { ok: true, error: null, renderId, nodes, clusters, edges };
+        const isNote = n => /\bstatediagram-note\b/.test(n.classes);
+        const nodes = all.filter(n => !isNote(n));
+        const notes = all.filter(isNote);
+        // Flowchart: g.cluster med id <renderId>-<id>. State: g.statediagram-cluster med id som noder.
+        const clusters = [
+          ...[...doc.querySelectorAll('g.cluster')].map(g => ({
+            id: g.id.startsWith(renderId + '-') ? g.id.slice(renderId.length + 1) : g.id,
+            domId: g.id,
+          })),
+          ...[...doc.querySelectorAll('g.statediagram-cluster')].map(g => ({ id: (nodeId.exec(g.id) || [])[1] ?? g.id, domId: g.id })),
+        ];
+        const paths = [...doc.querySelectorAll('g.edgePaths > path')];
+        const edges = paths.filter(p => !p.id.includes('----note')).length;
+        return { ok: true, error: null, renderId, nodes, notes, clusters, edges };
       } catch (e) {
         document.getElementById('d' + renderId)?.remove();
-        return { ok: false, error: String(e && e.message || e), renderId, nodes: [], clusters: [], edges: 0 };
+        return { ok: false, error: String(e && e.message || e), renderId, nodes: [], notes: [], clusters: [], edges: 0 };
       }
     }, { text, config, renderId });
   }

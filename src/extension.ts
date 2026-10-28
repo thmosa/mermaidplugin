@@ -1,8 +1,6 @@
 import * as vscode from 'vscode';
-import {
-  FlowModel, FlowEdge, parseFlowchart, filterFlowchart, visibility, neighborhood,
-  nodeKey, edgeKey, subgraphKey,
-} from './parser';
+import { FlowEdge, visibility, neighborhood, nodeKey, edgeKey, subgraphKey } from './parser';
+import { AnyModel, parseDiagram, filterDiagram } from './diagram';
 
 const HIDDEN_STATE = 'mermaidTree.hidden';
 
@@ -15,7 +13,7 @@ function isMermaid(doc: vscode.TextDocument): boolean {
 /** Aktuellt diagram, dess modell och vilka element som är dolda. */
 class DiagramState {
   doc: vscode.TextDocument | undefined;
-  model: FlowModel | undefined;
+  model: AnyModel | undefined;
   hidden = new Set<string>();
 
   private readonly changed = new vscode.EventEmitter<void>();
@@ -32,7 +30,7 @@ class DiagramState {
   }
 
   reparse() {
-    this.model = this.doc ? parseFlowchart(this.doc.getText()) : undefined;
+    this.model = this.doc ? parseDiagram(this.doc.getText()) : undefined;
     this.changed.fire();
   }
 
@@ -48,7 +46,7 @@ class DiagramState {
 
   filteredText(): string {
     if (!this.doc || !this.model) return '';
-    return filterFlowchart(this.model, this.hidden);
+    return filterDiagram(this.model, this.hidden);
   }
 
   private commit() {
@@ -105,7 +103,7 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
   getChildren(parent?: Item): Item[] {
     const m = this.state.model;
     if (!m) return [];
-    if (!m.supported) return parent ? [] : [this.item({ kind: 'info', text: `Diagramtypen "${m.diagramType}" stöds inte än (bara flowchart)` })];
+    if (!m.supported) return parent ? [] : [this.item({ kind: 'info', text: `Diagramtypen "${m.diagramType}" stöds inte än (bara flowchart och state diagram)` })];
     if (!parent || parent.kind === 'subgraph') {
       const sgId = parent?.kind === 'subgraph' ? parent.id : undefined;
       const children: Item[] = [];
@@ -131,7 +129,8 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
     const m = this.state.model!;
     const vis = visibility(m, this.state.hidden);
     const check = (hidden: boolean) => hidden ? vscode.TreeItemCheckboxState.Unchecked : vscode.TreeItemCheckboxState.Checked;
-    const label = (id: string) => m.nodes.get(id)?.label ?? id;
+    const label = (id: string) => m.nodes.get(id)?.label ?? m.subgraphs.get(id)?.title ?? id;
+    const isState = /^stateDiagram/.test(m.diagramType);
 
     switch (i.kind) {
       case 'info': {
@@ -143,7 +142,7 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
         const sg = m.subgraphs.get(i.id)!;
         const t = new vscode.TreeItem(sg.title, vscode.TreeItemCollapsibleState.Expanded);
         t.id = subgraphKey(i.id);
-        t.iconPath = new vscode.ThemeIcon('symbol-namespace');
+        t.iconPath = new vscode.ThemeIcon(isState ? 'symbol-class' : 'symbol-namespace');
         t.contextValue = 'subgraph';
         t.checkboxState = check(this.state.hidden.has(subgraphKey(i.id)));
         if (!this.state.hidden.has(subgraphKey(i.id)) && vis.isSubgraphHidden(i.id)) t.description = 'dold via förälder';
@@ -154,17 +153,17 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
         const n = m.nodes.get(i.id)!;
         const t = new vscode.TreeItem(n.label);
         t.id = nodeKey(i.id);
-        t.iconPath = new vscode.ThemeIcon('symbol-constant');
+        t.iconPath = new vscode.ThemeIcon(n.pseudo === 'start' ? 'debug-start' : n.pseudo === 'end' ? 'debug-stop' : 'symbol-constant');
         t.contextValue = 'node';
         t.checkboxState = check(this.state.hidden.has(nodeKey(i.id)));
         const viaParent = !this.state.hidden.has(nodeKey(i.id)) && vis.isNodeHidden(i.id);
-        t.description = [n.label !== n.id ? n.id : '', viaParent ? 'dold via subgraf' : ''].filter(Boolean).join(' · ');
+        t.description = [n.label !== n.id && !n.pseudo ? n.id : '', viaParent ? 'dold via subgraf' : ''].filter(Boolean).join(' · ');
         t.tooltip = `${n.id} – rad ${n.line + 1}`;
         return t;
       }
       case 'edgeGroup': {
         const hiddenCount = m.edges.filter(e => vis.isEdgeHidden(e)).length;
-        const t = new vscode.TreeItem('Kanter', vscode.TreeItemCollapsibleState.Collapsed);
+        const t = new vscode.TreeItem(isState ? 'Övergångar' : 'Kanter', vscode.TreeItemCollapsibleState.Collapsed);
         t.id = 'edgeGroup';
         t.iconPath = new vscode.ThemeIcon('git-merge');
         t.contextValue = 'edgeGroup';

@@ -48,7 +48,8 @@
 
   /** Staplingsaxel efter diagrammets riktning: lodrätt för LR/RL, annars vågrätt. */
   Labels.axisFor = text => {
-    const m = /^\s*(?:flowchart|graph)\b[ \t]*(\w+)?/m.exec(text);
+    const m = /^\s*(?:flowchart|graph)\b[ \t]*(\w+)?/m.exec(text)
+      || (/^\s*stateDiagram/m.test(text) && /^\s*direction[ \t]+(\w+)/m.exec(text));
     return m && /^(LR|RL)$/i.test(m[1] || '') ? 'y' : 'x';
   };
 
