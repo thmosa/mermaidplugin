@@ -13,6 +13,11 @@
     "Visualization"
   ],
   "main": "./out/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "activationEvents": [
     "onLanguage:mermaid"
   ],
@@ -29,8 +34,17 @@
         ]
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mermaidTree",
+          "title": "Mermaid Tree",
+          "icon": "media/tree.svg"
+        }
+      ]
+    },
     "views": {
-      "explorer": [
+      "mermaidTree": [
         {
           "id": "mermaidTree.structure",
           "name": "Mermaid-struktur"
