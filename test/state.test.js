@@ -62,7 +62,7 @@ test('state: [*] blir start/slut i sitt eget sammansatta tillstånd', () => {
   assert.equal(m.nodes.get('root_start').pseudo, 'start');
   assert.equal(m.nodes.get('root_end').pseudo, 'end');
   assert.equal(m.nodes.get('root_start').label, 'Start');
-  assert.equal(m.nodes.get('root_end').label, 'Slut');
+  assert.equal(m.nodes.get('root_end').label, 'End');
   assert.equal(m.nodes.get('Crash_start').subgraph, 'Crash');
   assert.equal(m.nodes.get('root_start').subgraph, undefined);
 });

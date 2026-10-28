@@ -1,7 +1,7 @@
 {
   "name": "mermaid-tree",
   "displayName": "Mermaid Tree (spike)",
-  "description": "Arbetsträd för Mermaid-diagram: dölj noder, kanter och subgrafer och zooma i förhandsvisningen.",
+  "description": "Structure tree for Mermaid diagrams: hide nodes, edges and subgraphs, and zoom in the preview.",
   "version": "0.0.1",
   "publisher": "local",
   "private": true,
@@ -31,9 +31,24 @@
         "extensions": [
           ".mmd",
           ".mermaid"
-        ]
+        ],
+        "configuration": "./language-configuration.json"
       }
     ],
+    "grammars": [
+      {
+        "language": "mermaid",
+        "scopeName": "source.mermaid",
+        "path": "./syntaxes/mermaid.tmLanguage.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[mermaid]": {
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true,
+        "editor.autoIndent": "full"
+      }
+    },
     "viewsContainers": {
       "activitybar": [
         {
@@ -47,38 +62,38 @@
       "mermaidTree": [
         {
           "id": "mermaidTree.structure",
-          "name": "Mermaid-struktur"
+          "name": "Mermaid Structure"
         }
       ]
     },
     "viewsWelcome": [
       {
         "view": "mermaidTree.structure",
-        "contents": "Öppna en .mmd- eller .mermaid-fil för att se diagrammets struktur.\n[Öppna förhandsvisning](command:mermaidTree.openPreview)"
+        "contents": "Open a .mmd or .mermaid file to see the diagram structure.\n[Open Preview](command:mermaidTree.openPreview)"
       }
     ],
     "commands": [
       {
         "command": "mermaidTree.openPreview",
-        "title": "Öppna förhandsvisning",
+        "title": "Open Preview",
         "category": "Mermaid Tree",
         "icon": "$(open-preview)"
       },
       {
         "command": "mermaidTree.showAll",
-        "title": "Visa allt",
+        "title": "Show All",
         "category": "Mermaid Tree",
         "icon": "$(eye)"
       },
       {
         "command": "mermaidTree.focusNeighbors",
-        "title": "Visa bara denna nod och dess grannar",
+        "title": "Show Only This and Its Neighbors",
         "category": "Mermaid Tree",
         "icon": "$(target)"
       },
       {
         "command": "mermaidTree.hideItem",
-        "title": "Dölj",
+        "title": "Hide",
         "category": "Mermaid Tree",
         "icon": "$(eye-closed)"
       }
@@ -134,7 +149,7 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "tsc -p . && node --test test/*.test.js",
-    "test:unit": "tsc -p . && node --test test/parser.test.js test/state.test.js test/zoom.test.js test/labels.test.js",
+    "test:unit": "tsc -p . && node --test test/parser.test.js test/state.test.js test/zoom.test.js test/labels.test.js test/language.test.js test/diagnostics.test.js",
     "test:contract": "tsc -p . && node --test test/mermaid.contract.test.js test/state.contract.test.js"
   },
   "dependencies": {

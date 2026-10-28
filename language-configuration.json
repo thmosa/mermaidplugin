@@ -1,0 +1,36 @@
+{
+  "comments": {
+    "lineComment": "%%"
+  },
+  "brackets": [
+    ["[", "]"],
+    ["(", ")"],
+    ["{", "}"]
+  ],
+  "autoClosingPairs": [
+    { "open": "[", "close": "]" },
+    { "open": "(", "close": ")" },
+    { "open": "{", "close": "}" },
+    { "open": "\"", "close": "\"", "notIn": ["string"] }
+  ],
+  "autoCloseBefore": ";:.,=}])>|` \n\t",
+  "surroundingPairs": [
+    ["[", "]"],
+    ["(", ")"],
+    ["{", "}"],
+    ["\"", "\""],
+    ["`", "`"],
+    ["|", "|"]
+  ],
+  "indentationRules": {
+    "increaseIndentPattern": "^\\s*(?:(?:flowchart|graph)\\b.*|(?:stateDiagram(?:-v2)?|sequenceDiagram|classDiagram(?:-v2)?|erDiagram)\\s*|subgraph\\b.*|note\\s+(?:left|right)\\s+of\\s+[^:]*|(?:loop|alt|else|opt|par|and|critical|option|break|rect|box)\\b.*|[^%\\s].*\\{\\s*)$",
+    "decreaseIndentPattern": "^\\s*(?:end(?:\\s+note)?|\\}|(?:else|and|option)\\b.*)\\s*$"
+  },
+  "folding": {
+    "markers": {
+      "start": "^\\s*%%\\s*#?region\\b",
+      "end": "^\\s*%%\\s*#?endregion\\b"
+    }
+  },
+  "wordPattern": "[\\p{L}\\p{N}_$][\\p{L}\\p{N}_$-]*"
+}

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { FlowEdge, visibility, neighborhood, nodeKey, edgeKey, subgraphKey } from './parser';
 import { AnyModel, parseDiagram, filterDiagram } from './diagram';
+import { caseConflicts } from './diagnostics';
 
 const HIDDEN_STATE = 'mermaidTree.hidden';
 
@@ -103,7 +104,7 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
   getChildren(parent?: Item): Item[] {
     const m = this.state.model;
     if (!m) return [];
-    if (!m.supported) return parent ? [] : [this.item({ kind: 'info', text: `Diagramtypen "${m.diagramType}" stöds inte än (bara flowchart och state diagram)` })];
+    if (!m.supported) return parent ? [] : [this.item({ kind: 'info', text: `Diagram type "${m.diagramType}" is not supported yet (only flowchart and state diagram)` })];
     if (!parent || parent.kind === 'subgraph') {
       const sgId = parent?.kind === 'subgraph' ? parent.id : undefined;
       const children: Item[] = [];
@@ -145,7 +146,7 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
         t.iconPath = new vscode.ThemeIcon(isState ? 'symbol-class' : 'symbol-namespace');
         t.contextValue = 'subgraph';
         t.checkboxState = check(this.state.hidden.has(subgraphKey(i.id)));
-        if (!this.state.hidden.has(subgraphKey(i.id)) && vis.isSubgraphHidden(i.id)) t.description = 'dold via förälder';
+        if (!this.state.hidden.has(subgraphKey(i.id)) && vis.isSubgraphHidden(i.id)) t.description = 'hidden by parent';
         else if (sg.title !== i.id) t.description = i.id;
         return t;
       }
@@ -157,17 +158,17 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
         t.contextValue = 'node';
         t.checkboxState = check(this.state.hidden.has(nodeKey(i.id)));
         const viaParent = !this.state.hidden.has(nodeKey(i.id)) && vis.isNodeHidden(i.id);
-        t.description = [n.label !== n.id && !n.pseudo ? n.id : '', viaParent ? 'dold via subgraf' : ''].filter(Boolean).join(' · ');
-        t.tooltip = `${n.id} – rad ${n.line + 1}`;
+        t.description = [n.label !== n.id && !n.pseudo ? n.id : '', viaParent ? (isState ? 'hidden by composite state' : 'hidden by subgraph') : ''].filter(Boolean).join(' · ');
+        t.tooltip = `${n.id} – line ${n.line + 1}`;
         return t;
       }
       case 'edgeGroup': {
         const hiddenCount = m.edges.filter(e => vis.isEdgeHidden(e)).length;
-        const t = new vscode.TreeItem(isState ? 'Övergångar' : 'Kanter', vscode.TreeItemCollapsibleState.Collapsed);
+        const t = new vscode.TreeItem(isState ? 'Transitions' : 'Edges', vscode.TreeItemCollapsibleState.Collapsed);
         t.id = 'edgeGroup';
         t.iconPath = new vscode.ThemeIcon('git-merge');
         t.contextValue = 'edgeGroup';
-        t.description = hiddenCount ? `${m.edges.length - hiddenCount} av ${m.edges.length} synliga` : `${m.edges.length}`;
+        t.description = hiddenCount ? `${m.edges.length - hiddenCount} of ${m.edges.length} visible` : `${m.edges.length}`;
         t.checkboxState = check(m.edges.every(e => this.state.hidden.has(edgeKey(e.key))));
         return t;
       }
@@ -179,7 +180,7 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
         t.contextValue = 'edge';
         t.checkboxState = check(this.state.hidden.has(edgeKey(e.key)));
         const viaNode = !this.state.hidden.has(edgeKey(e.key)) && vis.isEdgeHidden(e);
-        t.description = [e.label, viaNode ? 'dold via nod' : ''].filter(Boolean).join(' · ');
+        t.description = [e.label, viaNode ? (isState ? 'hidden by state' : 'hidden by node') : ''].filter(Boolean).join(' · ');
         return t;
       }
     }
@@ -206,7 +207,7 @@ class Preview {
     if (this.panel) { this.panel.reveal(vscode.ViewColumn.Beside, true); return; }
     const media = vscode.Uri.joinPath(this.ctx.extensionUri, 'media');
     const mermaidDist = vscode.Uri.joinPath(this.ctx.extensionUri, 'node_modules', 'mermaid', 'dist');
-    this.panel = vscode.window.createWebviewPanel('mermaidTree.preview', 'Mermaid-förhandsvisning',
+    this.panel = vscode.window.createWebviewPanel('mermaidTree.preview', 'Mermaid Preview',
       { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
       { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [media, mermaidDist] });
     this.ready = false;
@@ -224,7 +225,7 @@ class Preview {
 
   private update() {
     if (!this.panel || !this.ready || !this.state.doc) return;
-    this.panel.title = `Förhandsvisning: ${vscode.workspace.asRelativePath(this.state.doc.uri)}`;
+    this.panel.title = `Preview: ${vscode.workspace.asRelativePath(this.state.doc.uri)}`;
     void this.panel.webview.postMessage({ type: 'render', text: this.state.filteredText() });
   }
 
@@ -239,7 +240,7 @@ class Preview {
       `script-src 'nonce-${nonce}'`,
     ].join('; ');
     return `<!DOCTYPE html>
-<html lang="sv">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="${csp}">
@@ -260,25 +261,25 @@ ${TOOLBAR_HTML}
 }
 
 const TOOLBAR_HTML = `<div id="toolbar">
-  <button data-action="out" title="Zooma ut (-)">−</button>
-  <button data-action="in" title="Zooma in (+)">+</button>
-  <button data-action="fit" title="Anpassa till fönster (0)">Anpassa</button>
-  <button data-action="width" title="Anpassa bredd (w)">Bredd</button>
-  <button data-action="actual" title="Verklig storlek (1)">100 %</button>
-  <button data-action="selection" title="Zooma till markering">Markering</button>
+  <button data-action="out" title="Zoom out (-)">−</button>
+  <button data-action="in" title="Zoom in (+)">+</button>
+  <button data-action="fit" title="Fit to window (0)">Fit</button>
+  <button data-action="width" title="Fit width (w)">Width</button>
+  <button data-action="actual" title="Actual size (1)">100%</button>
+  <button data-action="selection" title="Zoom to selection">Selection</button>
   <span class="sep"></span>
   <label for="layout">Layout</label>
   <select id="layout">
-    <option value="">standard</option>
+    <option value="">default</option>
     <option>dagre</option>
     <option>elk</option>
     <option>elk.stress</option>
     <option>elk.force</option>
     <option>elk.mrtree</option>
   </select>
-  <label for="look">Stil</label>
+  <label for="look">Look</label>
   <select id="look">
-    <option value="">standard</option>
+    <option value="">default</option>
     <option>neo</option>
     <option>classic</option>
     <option>handDrawn</option>
@@ -311,6 +312,20 @@ export function activate(ctx: vscode.ExtensionContext) {
     if (line !== undefined) revealLine(line);
   });
 
+  // Id:n som bara skiljer i stora/små bokstäver visas som fel i editorn.
+  const diagnostics = vscode.languages.createDiagnosticCollection('mermaidTree');
+  const updateDiagnostics = () => {
+    const doc = state.doc;
+    const m = state.model;
+    if (!doc || !m) return;
+    diagnostics.set(doc.uri, caseConflicts(doc.getText(), m).map(c => {
+      const d = new vscode.Diagnostic(new vscode.Range(c.line, c.start, c.line, c.end), c.message, vscode.DiagnosticSeverity.Error);
+      d.source = 'Mermaid Tree';
+      return d;
+    }));
+  };
+  state.onDidChange(updateDiagnostics);
+
   const track = (editor: vscode.TextEditor | undefined) => {
     if (editor && isMermaid(editor.document)) state.setDocument(editor.document);
   };
@@ -320,6 +335,8 @@ export function activate(ctx: vscode.ExtensionContext) {
 
   ctx.subscriptions.push(
     view,
+    diagnostics,
+    vscode.workspace.onDidCloseTextDocument(doc => diagnostics.delete(doc.uri)),
     vscode.window.onDidChangeActiveTextEditor(track),
     vscode.workspace.onDidChangeTextDocument(e => {
       if (e.document !== state.doc) return;
@@ -349,7 +366,7 @@ export function activate(ctx: vscode.ExtensionContext) {
     vscode.commands.registerCommand('mermaidTree.openPreview', (uri?: vscode.Uri) => {
       const doc = uri ? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString()) : vscode.window.activeTextEditor?.document;
       if (doc && isMermaid(doc)) state.setDocument(doc);
-      if (!state.doc) { void vscode.window.showInformationMessage('Öppna en .mmd- eller .mermaid-fil först.'); return; }
+      if (!state.doc) { void vscode.window.showInformationMessage('Open a .mmd or .mermaid file first.'); return; }
       preview.open();
     }),
 

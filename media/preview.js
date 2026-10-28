@@ -43,7 +43,7 @@
     if (!svg || !view) return;
     const b = Zoom.viewBox(view, size());
     svg.setAttribute('viewBox', `${b.x} ${b.y} ${b.w} ${b.h}`);
-    zoomLabel.textContent = `${Math.round(view.s * 100)} %`;
+    zoomLabel.textContent = `${Math.round(view.s * 100)}%`;
   }
 
   /** Elementets ruta i diagramkoordinater, mätt från hur det ritas just nu. */

@@ -166,7 +166,7 @@ export function parseState(text: string): StateModel {
     if (model.subgraphs.has(id)) continue;
     const kind = pseudo.get(id);
     const node: FlowNode = {
-      id, label: kind ? (kind === 'start' ? 'Start' : 'Slut') : labels.get(id) ?? id,
+      id, label: kind ? (kind === 'start' ? 'Start' : 'End') : labels.get(id) ?? id,
       line: defLine.get(id) ?? Math.min(line, bareStateLine.get(id) ?? line), subgraph: membership.get(id),
     };
     if (kind) node.pseudo = kind;

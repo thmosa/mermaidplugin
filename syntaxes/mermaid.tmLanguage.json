@@ -1,0 +1,132 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Mermaid",
+  "scopeName": "source.mermaid",
+  "patterns": [
+    { "include": "#frontmatter" },
+    { "include": "#comment" },
+    { "include": "#header" },
+    { "include": "#note-block" },
+    { "include": "#statements" }
+  ],
+  "repository": {
+    "frontmatter": {
+      "begin": "\\A---\\s*$",
+      "end": "^---\\s*$",
+      "name": "meta.embedded.block.frontmatter",
+      "beginCaptures": { "0": { "name": "punctuation.definition.tag.mermaid" } },
+      "endCaptures": { "0": { "name": "punctuation.definition.tag.mermaid" } },
+      "patterns": [{ "include": "source.yaml" }]
+    },
+    "comment": {
+      "match": "^\\s*%%.*$",
+      "name": "comment.line.percentage.mermaid"
+    },
+    "header": {
+      "match": "^\\s*(flowchart|graph|stateDiagram-v2|stateDiagram|sequenceDiagram|classDiagram-v2|classDiagram|erDiagram|gantt|pie|journey|gitGraph|mindmap|timeline|quadrantChart|requirementDiagram|C4Context|sankey-beta|xychart-beta|block-beta|packet-beta|kanban|architecture-beta)\\b(?:\\s+(TB|TD|BT|RL|LR))?",
+      "captures": {
+        "1": { "name": "keyword.control.diagram.mermaid" },
+        "2": { "name": "constant.language.direction.mermaid" }
+      }
+    },
+    "note-block": {
+      "begin": "^\\s*(note)\\s+(left of|right of|over)\\s+([^:\\s]+)\\s*$",
+      "end": "^\\s*(end note)\\b",
+      "beginCaptures": {
+        "1": { "name": "keyword.other.note.mermaid" },
+        "2": { "name": "keyword.other.note.mermaid" },
+        "3": { "name": "variable.other.state.mermaid" }
+      },
+      "endCaptures": { "1": { "name": "keyword.other.note.mermaid" } },
+      "contentName": "string.unquoted.note.mermaid"
+    },
+    "statements": {
+      "patterns": [
+        { "include": "#string" },
+        { "include": "#edge-label" },
+        { "include": "#arrow" },
+        { "include": "#start-end" },
+        { "include": "#stereotype" },
+        { "include": "#class-ref" },
+        { "include": "#style-line" },
+        { "include": "#note-inline" },
+        { "include": "#keyword" },
+        { "include": "#direction" },
+        { "include": "#shape" },
+        { "include": "#transition-label" }
+      ]
+    },
+    "string": {
+      "begin": "\"",
+      "end": "\"",
+      "name": "string.quoted.double.mermaid"
+    },
+    "edge-label": {
+      "match": "(\\|)([^|]*)(\\|)",
+      "captures": {
+        "1": { "name": "punctuation.separator.mermaid" },
+        "2": { "name": "string.unquoted.label.mermaid" },
+        "3": { "name": "punctuation.separator.mermaid" }
+      }
+    },
+    "arrow": {
+      "match": "(?:[\\w]+@)?[<ox]?(?:-{2,}[>ox]?|={2,}[>ox]?|-\\.+-[>ox]?|~{3,}|-->>|->>|-->|->|--x|-x|--\\)|-\\))|<\\|--|\\*--|o--|\\.\\.>|\\.\\.\\|>|\\|\\|--o\\{|\\}o--\\|\\|",
+      "name": "keyword.operator.arrow.mermaid"
+    },
+    "start-end": {
+      "match": "\\[\\*\\]",
+      "name": "constant.language.start-end.mermaid"
+    },
+    "stereotype": {
+      "match": "<<\\s*\\w+\\s*>>",
+      "name": "storage.type.stereotype.mermaid"
+    },
+    "class-ref": {
+      "match": "(:::)([\\w-]+)",
+      "captures": {
+        "1": { "name": "punctuation.separator.mermaid" },
+        "2": { "name": "entity.name.type.class.mermaid" }
+      }
+    },
+    "style-line": {
+      "match": "^\\s*(classDef|style|linkStyle|class|click|cssClass)\\b(.*)$",
+      "captures": {
+        "1": { "name": "keyword.other.style.mermaid" },
+        "2": { "name": "support.constant.style.mermaid" }
+      }
+    },
+    "note-inline": {
+      "match": "^\\s*(note)\\s+(left of|right of|over)\\s+([^:]+?)\\s*(:)(.*)$",
+      "captures": {
+        "1": { "name": "keyword.other.note.mermaid" },
+        "2": { "name": "keyword.other.note.mermaid" },
+        "3": { "name": "variable.other.state.mermaid" },
+        "4": { "name": "punctuation.separator.mermaid" },
+        "5": { "name": "string.unquoted.note.mermaid" }
+      }
+    },
+    "keyword": {
+      "match": "^\\s*(subgraph|end|state|direction|participant|actor|loop|alt|else|opt|par|and|critical|option|break|rect|box|activate|deactivate|autonumber|title|section|accTitle|accDescr)\\b|\\b(as)\\b",
+      "name": "keyword.control.mermaid"
+    },
+    "direction": {
+      "match": "(?<=direction\\s)\\s*(TB|TD|BT|RL|LR)\\b",
+      "name": "constant.language.direction.mermaid"
+    },
+    "shape": {
+      "begin": "(?<=[\\p{L}\\p{N}_])(\\[\\[|\\[\\(|\\[\\/|\\[\\\\|\\(\\(\\(|\\(\\(|\\(\\[|\\{\\{|\\[|\\(|\\{|>)",
+      "end": "(\\]\\]|\\)\\]|\\/\\]|\\\\\\]|\\)\\)\\)|\\)\\)|\\]\\)|\\}\\}|\\]|\\)|\\})",
+      "beginCaptures": { "1": { "name": "punctuation.definition.shape.begin.mermaid" } },
+      "endCaptures": { "1": { "name": "punctuation.definition.shape.end.mermaid" } },
+      "contentName": "string.unquoted.label.mermaid",
+      "patterns": [{ "include": "#string" }]
+    },
+    "transition-label": {
+      "match": "(?<=\\S)\\s*(:)\\s*([^:]*)$",
+      "captures": {
+        "1": { "name": "punctuation.separator.mermaid" },
+        "2": { "name": "string.unquoted.label.mermaid" }
+      }
+    }
+  }
+}
