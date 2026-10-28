@@ -47,6 +47,18 @@ test('språk: indrag minskar inte på vanliga rader', () => {
   }
 });
 
+test('meny: högerklick i en Mermaid-fil ger "Preview Diagram" och "View Tree"', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const title = id => pkg.contributes.commands.find(c => c.command === id)?.title;
+  const menu = pkg.contributes.menus['editor/context'] ?? [];
+  for (const [command, expected] of [['mermaidTree.openPreview', 'Preview Diagram'], ['mermaidTree.showTree', 'View Tree']]) {
+    assert.equal(title(command), expected);
+    const entry = menu.find(m => m.command === command);
+    assert.ok(entry, `${command} saknas i editor/context`);
+    assert.equal(entry.when, 'resourceLangId == mermaid');
+  }
+});
+
 test('språk: package.json kopplar konfiguration och grammatik till mermaid', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const lang = pkg.contributes.languages.find(l => l.id === 'mermaid');

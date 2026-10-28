@@ -69,15 +69,21 @@
     "viewsWelcome": [
       {
         "view": "mermaidTree.structure",
-        "contents": "Open a .mmd or .mermaid file to see the diagram structure.\n[Open Preview](command:mermaidTree.openPreview)"
+        "contents": "Open a .mmd or .mermaid file to see the diagram structure.\n[Preview Diagram](command:mermaidTree.openPreview)"
       }
     ],
     "commands": [
       {
         "command": "mermaidTree.openPreview",
-        "title": "Open Preview",
+        "title": "Preview Diagram",
         "category": "Mermaid Tree",
         "icon": "$(open-preview)"
+      },
+      {
+        "command": "mermaidTree.showTree",
+        "title": "View Tree",
+        "category": "Mermaid Tree",
+        "icon": "$(list-tree)"
       },
       {
         "command": "mermaidTree.showAll",
@@ -99,6 +105,18 @@
       }
     ],
     "menus": {
+      "editor/context": [
+        {
+          "command": "mermaidTree.openPreview",
+          "when": "resourceLangId == mermaid",
+          "group": "mermaid@1"
+        },
+        {
+          "command": "mermaidTree.showTree",
+          "when": "resourceLangId == mermaid",
+          "group": "mermaid@2"
+        }
+      ],
       "editor/title": [
         {
           "command": "mermaidTree.openPreview",
@@ -149,7 +167,7 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "tsc -p . && node --test test/*.test.js",
-    "test:unit": "tsc -p . && node --test test/parser.test.js test/state.test.js test/zoom.test.js test/labels.test.js test/language.test.js test/diagnostics.test.js",
+    "test:unit": "tsc -p . && node --test test/parser.test.js test/state.test.js test/zoom.test.js test/labels.test.js test/language.test.js test/diagnostics.test.js test/tree.test.js",
     "test:contract": "tsc -p . && node --test test/mermaid.contract.test.js test/state.contract.test.js"
   },
   "dependencies": {

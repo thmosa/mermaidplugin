@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { FlowEdge, visibility, neighborhood, nodeKey, edgeKey, subgraphKey } from './parser';
 import { AnyModel, parseDiagram, filterDiagram } from './diagram';
 import { caseConflicts } from './diagnostics';
+import { Item, children, parentOf, initialState } from './tree';
 
 const HIDDEN_STATE = 'mermaidTree.hidden';
 
@@ -62,12 +63,11 @@ class DiagramState {
 
 // ---------------------------------------------------------------- arbetsträd
 
-type Item =
-  | { kind: 'subgraph'; id: string }
-  | { kind: 'node'; id: string }
-  | { kind: 'edgeGroup' }
-  | { kind: 'edge'; key: string }
-  | { kind: 'info'; text: string };
+const COLLAPSIBLE = {
+  collapsed: vscode.TreeItemCollapsibleState.Collapsed,
+  expanded: vscode.TreeItemCollapsibleState.Expanded,
+  none: vscode.TreeItemCollapsibleState.None,
+};
 
 const itemKey = (i: Item) =>
   i.kind === 'edge' ? edgeKey(i.key)
@@ -103,27 +103,13 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
 
   getChildren(parent?: Item): Item[] {
     const m = this.state.model;
-    if (!m) return [];
-    if (!m.supported) return parent ? [] : [this.item({ kind: 'info', text: `Diagram type "${m.diagramType}" is not supported yet (only flowchart and state diagram)` })];
-    if (!parent || parent.kind === 'subgraph') {
-      const sgId = parent?.kind === 'subgraph' ? parent.id : undefined;
-      const children: Item[] = [];
-      for (const sg of m.subgraphs.values()) if (sg.parent === sgId) children.push(this.item({ kind: 'subgraph', id: sg.id }));
-      children.sort((a, b) => m.subgraphs.get((a as { id: string }).id)!.line - m.subgraphs.get((b as { id: string }).id)!.line);
-      for (const n of m.nodes.values()) if (n.subgraph === sgId) children.push(this.item({ kind: 'node', id: n.id }));
-      if (!parent && m.edges.length) children.push(this.item({ kind: 'edgeGroup' }));
-      return children;
-    }
-    if (parent.kind === 'edgeGroup') return m.edges.map(e => this.item({ kind: 'edge', key: e.key }));
-    return [];
+    return m ? children(m, parent).map(i => this.item(i)) : [];
   }
 
   getParent(i: Item): Item | undefined {
     const m = this.state.model;
-    if (!m) return undefined;
-    if (i.kind === 'edge') return this.item({ kind: 'edgeGroup' });
-    const sg = i.kind === 'node' ? m.nodes.get(i.id)?.subgraph : i.kind === 'subgraph' ? m.subgraphs.get(i.id)?.parent : undefined;
-    return sg ? this.item({ kind: 'subgraph', id: sg }) : undefined;
+    const p = m && parentOf(m, i);
+    return p ? this.item(p) : undefined;
   }
 
   getTreeItem(i: Item): vscode.TreeItem {
@@ -141,7 +127,7 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
       }
       case 'subgraph': {
         const sg = m.subgraphs.get(i.id)!;
-        const t = new vscode.TreeItem(sg.title, vscode.TreeItemCollapsibleState.Expanded);
+        const t = new vscode.TreeItem(sg.title, COLLAPSIBLE[initialState(i)]);
         t.id = subgraphKey(i.id);
         t.iconPath = new vscode.ThemeIcon(isState ? 'symbol-class' : 'symbol-namespace');
         t.contextValue = 'subgraph';
@@ -164,7 +150,7 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
       }
       case 'edgeGroup': {
         const hiddenCount = m.edges.filter(e => vis.isEdgeHidden(e)).length;
-        const t = new vscode.TreeItem(isState ? 'Transitions' : 'Edges', vscode.TreeItemCollapsibleState.Collapsed);
+        const t = new vscode.TreeItem(isState ? 'Transitions' : 'Edges', COLLAPSIBLE[initialState(i)]);
         t.id = 'edgeGroup';
         t.iconPath = new vscode.ThemeIcon('git-merge');
         t.contextValue = 'edgeGroup';
@@ -325,6 +311,8 @@ export function activate(ctx: vscode.ExtensionContext) {
     }));
   };
   state.onDidChange(updateDiagnostics);
+  // Diagramtypen visas bredvid panelens namn i stället för som en egen rotnod.
+  state.onDidChange(() => { view.description = state.model?.diagramType || undefined; });
 
   const track = (editor: vscode.TextEditor | undefined) => {
     if (editor && isMermaid(editor.document)) state.setDocument(editor.document);
@@ -368,6 +356,12 @@ export function activate(ctx: vscode.ExtensionContext) {
       if (doc && isMermaid(doc)) state.setDocument(doc);
       if (!state.doc) { void vscode.window.showInformationMessage('Open a .mmd or .mermaid file first.'); return; }
       preview.open();
+    }),
+
+    vscode.commands.registerCommand('mermaidTree.showTree', async (uri?: vscode.Uri) => {
+      const doc = uri ? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString()) : vscode.window.activeTextEditor?.document;
+      if (doc && isMermaid(doc)) state.setDocument(doc);
+      await vscode.commands.executeCommand('mermaidTree.structure.focus');
     }),
 
     vscode.commands.registerCommand('mermaidTree.showAll', () => state.replaceHidden([])),
