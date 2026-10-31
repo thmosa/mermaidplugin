@@ -97,7 +97,9 @@
     if (kind === 'subgraph') {
       const re = new RegExp(`-state-${reEscape(id)}-\\d+$`);
       return [...svg.querySelectorAll(CLUSTER_SEL)]
-        .find(g => g.dataset.id === id || g.id === id || g.id.endsWith('-' + id) || re.test(g.id)) || null;
+        .find(g => g.dataset.id === id || g.id === id || g.id.endsWith('-' + id) || re.test(g.id))
+        // En hopfälld grupp ritas som en nod med gruppens id.
+        || findElement('node', id);
     }
     return null;
   }

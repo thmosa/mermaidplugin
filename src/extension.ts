@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { FlowEdge, visibility, neighborhood, nodeKey, edgeKey, subgraphKey } from './parser';
+import { FlowEdge, visibility, neighborhood, nodeKey, edgeKey, subgraphKey, collapseKey } from './parser';
 import { AnyModel, parseDiagram, filterDiagram } from './diagram';
 import { caseConflicts } from './diagnostics';
 import { checkSyntax } from './mermaidCheck';
@@ -43,8 +43,14 @@ class DiagramState {
     this.commit();
   }
 
+  /** Byter ut vad som är dolt. Hopfällda grupper (c:-nycklar) ligger kvar. */
   replaceHidden(keys: Iterable<string>) {
-    this.hidden = new Set(keys);
+    this.hidden = new Set([...[...this.hidden].filter(k => k.startsWith('c:')), ...keys]);
+    this.commit();
+  }
+
+  setCollapsed(sgId: string, collapsed: boolean) {
+    collapsed ? this.hidden.add(collapseKey(sgId)) : this.hidden.delete(collapseKey(sgId));
     this.commit();
   }
 
@@ -131,11 +137,15 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
         const sg = m.subgraphs.get(i.id)!;
         const t = new vscode.TreeItem(sg.title, COLLAPSIBLE[initialState(i)]);
         t.id = subgraphKey(i.id);
+        const collapsed = this.state.hidden.has(collapseKey(i.id));
         t.iconPath = new vscode.ThemeIcon(isState ? 'symbol-class' : 'symbol-namespace');
-        t.contextValue = 'subgraph';
+        t.contextValue = collapsed ? 'subgraphCollapsed' : 'subgraph';
         t.checkboxState = check(this.state.hidden.has(subgraphKey(i.id)));
-        if (!this.state.hidden.has(subgraphKey(i.id)) && vis.isSubgraphHidden(i.id)) t.description = 'hidden by parent';
-        else if (sg.title !== i.id) t.description = i.id;
+        const notes: string[] = [];
+        if (sg.title !== i.id) notes.push(i.id);
+        if (!this.state.hidden.has(subgraphKey(i.id)) && vis.isSubgraphHidden(i.id)) notes.push('hidden by parent');
+        else if (collapsed) notes.push('collapsed in diagram');
+        t.description = notes.join(' · ');
         return t;
       }
       case 'node': {
@@ -292,7 +302,9 @@ export function activate(ctx: vscode.ExtensionContext) {
     editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
   };
 
-  const preview = new Preview(ctx, state, (kind, id) => {
+  const preview = new Preview(ctx, state, (clickedKind, id) => {
+    // En hopfälld grupp ritas som en nod med gruppens id.
+    const kind = clickedKind === 'node' && !state.model?.nodes.has(id) && state.model?.subgraphs.has(id) ? 'subgraph' : clickedKind;
     const item = tree.find(kind, id);
     if (item) void view.reveal(item, { select: true, focus: false });
     const m = state.model;
@@ -388,6 +400,16 @@ export function activate(ctx: vscode.ExtensionContext) {
 
     vscode.commands.registerCommand('mermaidTree.hideItem', (item?: Item) => {
       if (item && item.kind !== 'info' && item.kind !== 'edgeGroup') state.setVisible([itemKey(item)], false);
+    }),
+
+    vscode.commands.registerCommand('mermaidTree.collapseGroup', (item?: Item) => {
+      const target = item ?? view.selection[0];
+      if (target?.kind === 'subgraph') { state.setCollapsed(target.id, true); preview.focus('subgraph', target.id); }
+    }),
+
+    vscode.commands.registerCommand('mermaidTree.expandGroup', (item?: Item) => {
+      const target = item ?? view.selection[0];
+      if (target?.kind === 'subgraph') { state.setCollapsed(target.id, false); preview.focus('subgraph', target.id); }
     }),
   );
 }

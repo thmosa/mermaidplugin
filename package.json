@@ -102,6 +102,18 @@
         "title": "Hide",
         "category": "Mermaid Tree",
         "icon": "$(eye-closed)"
+      },
+      {
+        "command": "mermaidTree.collapseGroup",
+        "title": "Collapse in Diagram",
+        "category": "Mermaid Tree",
+        "icon": "$(fold)"
+      },
+      {
+        "command": "mermaidTree.expandGroup",
+        "title": "Expand in Diagram",
+        "category": "Mermaid Tree",
+        "icon": "$(unfold)"
       }
     ],
     "menus": {
@@ -147,11 +159,37 @@
           "when": "view == mermaidTree.structure && viewItem == node"
         },
         {
+          "command": "mermaidTree.collapseGroup",
+          "when": "view == mermaidTree.structure && viewItem == subgraph",
+          "group": "inline"
+        },
+        {
+          "command": "mermaidTree.collapseGroup",
+          "when": "view == mermaidTree.structure && viewItem == subgraph"
+        },
+        {
+          "command": "mermaidTree.expandGroup",
+          "when": "view == mermaidTree.structure && viewItem == subgraphCollapsed",
+          "group": "inline"
+        },
+        {
+          "command": "mermaidTree.expandGroup",
+          "when": "view == mermaidTree.structure && viewItem == subgraphCollapsed"
+        },
+        {
           "command": "mermaidTree.hideItem",
-          "when": "view == mermaidTree.structure && viewItem =~ /^(node|edge|subgraph)$/"
+          "when": "view == mermaidTree.structure && viewItem =~ /^(node|edge|subgraph|subgraphCollapsed)$/"
         }
       ],
       "commandPalette": [
+        {
+          "command": "mermaidTree.collapseGroup",
+          "when": "false"
+        },
+        {
+          "command": "mermaidTree.expandGroup",
+          "when": "false"
+        },
         {
           "command": "mermaidTree.focusNeighbors",
           "when": "false"
@@ -167,8 +205,8 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "tsc -p . && node --test test/*.test.js",
-    "test:unit": "tsc -p . && node --test test/parser.test.js test/state.test.js test/zoom.test.js test/labels.test.js test/language.test.js test/diagnostics.test.js test/tree.test.js test/syntax.test.js",
-    "test:contract": "tsc -p . && node --test test/mermaid.contract.test.js test/state.contract.test.js test/mermaid.parse.test.js"
+    "test:unit": "tsc -p . && node --test test/parser.test.js test/state.test.js test/zoom.test.js test/labels.test.js test/language.test.js test/diagnostics.test.js test/tree.test.js test/syntax.test.js test/collapse.test.js",
+    "test:contract": "tsc -p . && node --test test/mermaid.contract.test.js test/state.contract.test.js test/mermaid.parse.test.js test/collapse.contract.test.js"
   },
   "dependencies": {
     "mermaid": "12.1.0"

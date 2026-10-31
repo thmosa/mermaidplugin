@@ -59,6 +59,18 @@ test('meny: högerklick i en Mermaid-fil ger "Preview Diagram" och "View Tree"',
   }
 });
 
+test('meny: grupper i trädet kan fällas ihop och ut i diagrammet', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const title = id => pkg.contributes.commands.find(c => c.command === id)?.title;
+  assert.equal(title('mermaidTree.collapseGroup'), 'Collapse in Diagram');
+  assert.equal(title('mermaidTree.expandGroup'), 'Expand in Diagram');
+  const items = pkg.contributes.menus['view/item/context'];
+  const whenFor = id => items.filter(m => m.command === id).map(m => m.when);
+  assert.ok(whenFor('mermaidTree.collapseGroup').some(w => /viewItem == subgraph\b/.test(w)));
+  assert.ok(whenFor('mermaidTree.expandGroup').some(w => /viewItem == subgraphCollapsed/.test(w)));
+  assert.ok(whenFor('mermaidTree.hideItem').some(w => /subgraphCollapsed/.test(w)), 'hopfälld grupp ska också gå att dölja');
+});
+
 test('språk: package.json kopplar konfiguration och grammatik till mermaid', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const lang = pkg.contributes.languages.find(l => l.id === 'mermaid');

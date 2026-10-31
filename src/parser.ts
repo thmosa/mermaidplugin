@@ -405,16 +405,73 @@ export function visibility(model: DiagramModel, hidden: ReadonlySet<string>): Vi
   };
 }
 
+// ---------------------------------------------------------------- hopfällning
+
+export const collapseKey = (id: string) => `c:${id}`;
+
+export interface Collapse {
+  /** Den yttersta hopfällda gruppen som ritar id:t (nod eller subgraf), om någon. */
+  owner(id: string): string | undefined;
+  /** Antal synliga noder i en grupp (utan [*]), för rutans etikett. */
+  count(sgId: string): number;
+  /** Kanter som ritas, med index till modellens kant och ändar efter omdragning. */
+  kept: Map<number, { from: string; to: string; remapped: boolean }>;
+}
+
+/**
+ * Hopfällda grupper ritas som en enda ruta. Kanter in i och ut ur gruppen dras om
+ * till rutan, kanter helt inne i den försvinner, och omdragna kanter som blir
+ * dubbletter av en redan ritad kant tas bort. Dold slår hopfälld.
+ */
+export function collapse(model: DiagramModel, hidden: ReadonlySet<string>): Collapse {
+  const vis = visibility(model, hidden);
+  const collapsed = (sg: string) => hidden.has(collapseKey(sg)) && !vis.isSubgraphHidden(sg);
+  const outermost = (start: string | undefined) => {
+    let found: string | undefined;
+    for (let cur = start; cur; cur = model.subgraphs.get(cur)?.parent) if (collapsed(cur)) found = cur;
+    return found;
+  };
+  const owner = (id: string) => outermost(model.subgraphs.has(id) ? id : model.nodes.get(id)?.subgraph);
+
+  const kept: Collapse['kept'] = new Map();
+  const seen = new Set<string>();
+  for (const e of model.edges) {
+    if (vis.isEdgeHidden(e)) continue;
+    const from = owner(e.from) ?? e.from;
+    const to = owner(e.to) ?? e.to;
+    const remapped = from !== e.from || to !== e.to;
+    const pair = `${from}->${to}`;
+    if (remapped && (from === to || seen.has(pair))) continue;
+    seen.add(pair);
+    kept.set(e.index, { from, to, remapped });
+  }
+
+  const count = (sgId: string) => [...model.nodes.values()].filter(n => {
+    if (n.pseudo || vis.isNodeHidden(n.id)) return false;
+    for (let cur = n.subgraph; cur; cur = model.subgraphs.get(cur)?.parent) if (cur === sgId) return true;
+    return false;
+  }).length;
+
+  return { owner, count, kept };
+}
+
+/** Rutans etikett: gruppens titel och hur många noder den döljer. Citattecken går inte att ha inuti. */
+export const collapsedLabel = (title: string, n: number) => `${title.replace(/"/g, '#quot;')} (+${n})`;
+
 /** Bygger diagramtext utan dolda element. Oförändrade rader lämnas exakt som de var. */
 export function filterFlowchart(model: FlowModel, hidden: ReadonlySet<string>): string {
   if (!model.supported || hidden.size === 0) return model.lines.map(l => l.text).join('\n');
   const vis = visibility(model, hidden);
+  const col = collapse(model, hidden);
   const out: string[] = [];
   const indexMap = new Map<number, number>();
   let edgeIdx = 0;
   let kept = 0;
   // linkStyle hänvisar till kantnummer, så numreringen räknas om efter filtreringen.
-  for (const e of model.edges) if (!vis.isEdgeHidden(e)) indexMap.set(e.index, kept++);
+  for (const e of model.edges) if (col.kept.has(e.index)) indexMap.set(e.index, kept++);
+  // Rader i en hopfälld grupp ersätts av gruppens ruta.
+  const insideCollapsed = (sg: string | undefined) => sg !== undefined && col.owner(sg) !== undefined;
+  const absorbed = (id: string) => { const o = col.owner(id); return o !== undefined && o !== id; };
 
   // Subgrafer där allt innehåll är dolt tas också bort, annars blir det tomma rutor.
   const hasVisible = (id: string): boolean =>
@@ -430,19 +487,30 @@ export function filterFlowchart(model: FlowModel, hidden: ReadonlySet<string>): 
   for (const line of model.lines) {
     switch (line.kind) {
       case 'sgStart':
-      case 'sgEnd':
-        if (!dropped.has(line.sg)) out.push(line.text);
+      case 'sgEnd': {
+        if (dropped.has(line.sg)) break;
+        const owner = col.owner(line.sg);
+        if (owner === undefined) out.push(line.text);
+        else if (owner === line.sg && line.kind === 'sgStart') {
+          const indent = line.text.slice(0, line.text.length - line.text.trimStart().length);
+          const title = model.subgraphs.get(line.sg)!.title;
+          out.push(`${indent}${line.sg}[["${collapsedLabel(title, col.count(line.sg))}"]]`);
+          declared.add(line.sg);
+        }
         break;
+      }
       case 'raw':
-        if (!line.sg || !dropped.has(line.sg)) out.push(line.text);
+        if (!line.sg || (!dropped.has(line.sg) && !insideCollapsed(line.sg))) out.push(line.text);
         break;
       case 'ref': {
-        const ids = line.ids.filter(id => !vis.isNodeHidden(id) && !(model.subgraphs.has(id) && vis.isSubgraphHidden(id)));
+        if (insideCollapsed(line.sg)) break;
+        const ids = line.ids.filter(id => !vis.isNodeHidden(id) && !(model.subgraphs.has(id) && vis.isSubgraphHidden(id)) && !absorbed(id));
         if (ids.length === line.ids.length) out.push(line.text);
         else if (ids.length) out.push(`${line.indent}${line.keyword} ${ids.join(',')}${line.rest}`);
         break;
       }
       case 'linkStyle': {
+        if (insideCollapsed(line.sg)) break;
         if (line.indices === 'default') { out.push(line.text); break; }
         const idx = line.indices.filter(n => indexMap.has(n)).map(n => indexMap.get(n)!);
         if (idx.length) out.push(`${line.indent}linkStyle ${idx.join(',')}${line.rest}`);
@@ -456,10 +524,14 @@ export function filterFlowchart(model: FlowModel, hidden: ReadonlySet<string>): 
           for (let k = 0; k < st.links.length; k++) {
             for (const a of st.groups[k]) for (const b of st.groups[k + 1]) {
               const e = model.edges[edgeIdx++];
-              if (vis.isEdgeHidden(e)) { changed = true; continue; }
-              pieces.push(`${a.text} ${st.links[k].text} ${b.text}`);
-              emitted.add(a.id);
-              emitted.add(b.id);
+              const k2 = col.kept.get(e.index);
+              if (!k2) { changed = true; continue; }
+              if (k2.remapped) changed = true;
+              const aText = k2.from === a.id ? a.text : k2.from;
+              const bText = k2.to === b.id ? b.text : k2.to;
+              pieces.push(`${aText} ${st.links[k].text} ${bText}`);
+              emitted.add(k2.from);
+              emitted.add(k2.to);
             }
           }
           // Synliga noder som bara hörde till dolda kanter behåller sin deklaration (form/etikett).
@@ -467,7 +539,7 @@ export function filterFlowchart(model: FlowModel, hidden: ReadonlySet<string>): 
           for (const g of st.groups) for (const r of g) {
             if (emitted.has(r.id) || seen.has(r.id)) continue;
             seen.add(r.id);
-            if (vis.isNodeHidden(r.id)) { changed = true; continue; }
+            if (vis.isNodeHidden(r.id) || absorbed(r.id)) { changed = true; continue; }
             const best = st.groups.flat().find(x => x.id === r.id && x.hasShape) ?? r;
             if (st.links.length) changed = true;
             if (!best.hasShape && declared.has(r.id)) continue;

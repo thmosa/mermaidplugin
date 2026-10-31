@@ -3,7 +3,7 @@
 // och sammansatta tillstånd subgrafer. Så fungerar trädet, synligheten och
 // grannsökningen oförändrade. Filtreringen skriver om texten rad för rad.
 
-import { DiagramModel, FlowNode, FlowSubgraph, cleanLabel, visibility } from './parser';
+import { DiagramModel, FlowNode, cleanLabel, visibility, collapse, collapsedLabel } from './parser';
 
 type Line =
   | { kind: 'raw'; text: string; sg?: string }
@@ -179,7 +179,11 @@ export function parseState(text: string): StateModel {
 export function filterState(model: StateModel, hidden: ReadonlySet<string>): string {
   if (!model.supported || hidden.size === 0) return model.lines.map(l => l.text).join('\n');
   const vis = visibility(model, hidden);
-  const visibleEdges = model.edges.filter(e => !vis.isEdgeHidden(e));
+  const col = collapse(model, hidden);
+  // Övergångar som ritas, med ändar efter omdragning till hopfällda tillstånd.
+  const drawnEdges = [...col.kept.values()];
+  const insideCollapsed = (sg: string | undefined) => sg !== undefined && col.owner(sg) !== undefined;
+  const absorbed = (id: string) => { const o = col.owner(id); return o !== undefined && o !== id; };
 
   // Sammansatta tillstånd utan något synligt tillstånd kvar tas bort ([*] räknas inte).
   const hasVisible = (id: string): boolean =>
@@ -190,16 +194,19 @@ export function filterState(model: StateModel, hidden: ReadonlySet<string>): str
     for (let cur = sg; cur; cur = model.subgraphs.get(cur)?.parent) if (dropped.has(cur)) return true;
     return false;
   };
-  const gone = (id: string) => vis.isNodeHidden(id) || (model.subgraphs.has(id) && vis.isSubgraphHidden(id));
+  // Rader i ett hopfällt tillstånd ersätts av dess platshållare.
+  const skip = (sg: string | undefined) => inDropped(sg) || insideCollapsed(sg);
+  const gone = (id: string) => vis.isNodeHidden(id) || (model.subgraphs.has(id) && vis.isSubgraphHidden(id)) || absorbed(id);
 
   // Tillstånd som syns på annat håll behöver ingen extra deklaration när en övergång försvinner.
   const shown = new Set<string>();
-  for (const e of visibleEdges) { shown.add(e.from); shown.add(e.to); }
-  for (const l of model.lines) if (l.kind === 'decl' && model.nodes.has(l.id) && !gone(l.id) && !inDropped(l.sg)) shown.add(l.id);
+  for (const e of drawnEdges) { shown.add(e.from); shown.add(e.to); }
+  for (const l of model.lines) if (l.kind === 'decl' && model.nodes.has(l.id) && !gone(l.id) && !skip(l.sg)) shown.add(l.id);
 
   // Ritas id:t alls efter filtreringen? Klasser och anteckningar på något som inte ritas ger fel i Mermaid.
-  const touched = new Set(visibleEdges.flatMap(e => [e.from, e.to]));
+  const touched = new Set(drawnEdges.flatMap(e => [e.from, e.to]));
   const drawn = (id: string): boolean => {
+    if (absorbed(id)) return false;
     const sg = model.subgraphs.get(id);
     if (sg) return !vis.isSubgraphHidden(id) && ((!dropped.has(id) && !inDropped(sg.parent)) || touched.has(id));
     const n = model.nodes.get(id);
@@ -222,30 +229,39 @@ export function filterState(model: StateModel, hidden: ReadonlySet<string>): str
   let edgeIdx = 0;
   for (const line of model.lines) {
     switch (line.kind) {
-      case 'compStart':
-        if (!inDropped(line.sg)) emit(line.text, model.subgraphs.get(line.sg)!.parent);
+      case 'compStart': {
+        if (inDropped(line.sg)) break;
+        const owner = col.owner(line.sg);
+        const parent = model.subgraphs.get(line.sg)!.parent;
+        if (owner === undefined) emit(line.text, parent);
+        else if (owner === line.sg) {
+          const indent = line.text.slice(0, line.text.length - line.text.trimStart().length);
+          const title = model.subgraphs.get(line.sg)!.title;
+          emit(`${indent}state "${collapsedLabel(title, col.count(line.sg))}" as ${line.sg}`, parent);
+        }
         break;
+      }
       case 'compEnd':
         pendingDivider.delete(line.sg);
-        if (!inDropped(line.sg)) out.push(line.text);
+        if (!skip(line.sg)) out.push(line.text);
         break;
       case 'divider':
-        if (!inDropped(line.sg) && regionHasContent.get(line.sg)) {
+        if (!skip(line.sg) && regionHasContent.get(line.sg)) {
           pendingDivider.set(line.sg, line.text);
           regionHasContent.set(line.sg, false);
         }
         break;
       case 'raw':
-        if (!inDropped(line.sg)) out.push(line.text);
+        if (!skip(line.sg)) out.push(line.text);
         break;
       case 'decl':
-        if (!inDropped(line.sg) && !gone(line.id)) emit(line.text, line.sg);
+        if (!skip(line.sg) && !gone(line.id)) emit(line.text, line.sg);
         break;
       case 'note':
-        if (!inDropped(line.sg) && drawn(line.target)) emit(line.text, line.sg);
+        if (!skip(line.sg) && drawn(line.target)) emit(line.text, line.sg);
         break;
       case 'class': {
-        if (inDropped(line.sg)) break;
+        if (skip(line.sg)) break;
         const ids = line.ids.filter(drawn);
         if (ids.length === line.ids.length) out.push(line.text);
         else if (ids.length) out.push(`${line.indent}class ${ids.join(',')}${line.rest}`);
@@ -253,8 +269,14 @@ export function filterState(model: StateModel, hidden: ReadonlySet<string>): str
       }
       case 'trans': {
         const e = model.edges[edgeIdx++];
-        if (inDropped(line.sg)) break;
-        if (!vis.isEdgeHidden(e)) { emit(line.text, line.sg); break; }
+        if (skip(line.sg)) break;
+        const k = col.kept.get(e.index);
+        if (k && !k.remapped) { emit(line.text, line.sg); break; }
+        if (k) {
+          const end = (id: string) => (model.nodes.get(id)?.pseudo ? '[*]' : id);
+          emit(`${line.indent}${end(k.from)} --> ${end(k.to)}${e.label ? ` : ${e.label}` : ''}`, line.sg);
+          break;
+        }
         for (const id of [e.from, e.to]) {
           const n = model.nodes.get(id);
           if (!n || n.pseudo || gone(id) || shown.has(id)) continue;
