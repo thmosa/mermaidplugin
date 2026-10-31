@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import { FlowEdge, visibility, neighborhood, nodeKey, edgeKey, subgraphKey } from './parser';
 import { AnyModel, parseDiagram, filterDiagram } from './diagram';
 import { caseConflicts } from './diagnostics';
+import { checkSyntax } from './mermaidCheck';
+import { syntaxDiagnostic } from './syntax';
 import { Item, children, parentOf, initialState } from './tree';
 
 const HIDDEN_STATE = 'mermaidTree.hidden';
@@ -298,19 +300,28 @@ export function activate(ctx: vscode.ExtensionContext) {
     if (line !== undefined) revealLine(line);
   });
 
-  // Id:n som bara skiljer i stora/små bokstäver visas som fel i editorn.
+  // Fel i editorn: Mermaids syntaxfel och id:n som bara skiljer i stora/små bokstäver.
   const diagnostics = vscode.languages.createDiagnosticCollection('mermaidTree');
-  const updateDiagnostics = () => {
+  const toDiagnostic = (c: { line: number; start: number; end: number; message: string }, source: string) => {
+    const d = new vscode.Diagnostic(new vscode.Range(c.line, c.start, c.line, c.end), c.message, vscode.DiagnosticSeverity.Error);
+    d.source = source;
+    return d;
+  };
+  const updateDiagnostics = async () => {
     const doc = state.doc;
     const m = state.model;
     if (!doc || !m) return;
-    diagnostics.set(doc.uri, caseConflicts(doc.getText(), m).map(c => {
-      const d = new vscode.Diagnostic(new vscode.Range(c.line, c.start, c.line, c.end), c.message, vscode.DiagnosticSeverity.Error);
-      d.source = 'Mermaid Tree';
-      return d;
-    }));
+    const version = doc.version;
+    const text = doc.getText();
+    const found = caseConflicts(text, m).map(c => toDiagnostic(c, 'Mermaid Tree'));
+    let err = null;
+    try { err = await checkSyntax(text); } catch { /* Mermaid kunde inte laddas; visa bara våra egna fel */ }
+    // En nyare version av texten hann komma medan Mermaid tolkade; den uppdaterar själv.
+    if (doc !== state.doc || doc.version !== version) return;
+    const syntax = err && syntaxDiagnostic(err, text);
+    diagnostics.set(doc.uri, syntax ? [toDiagnostic(syntax, 'Mermaid'), ...found] : found);
   };
-  state.onDidChange(updateDiagnostics);
+  state.onDidChange(() => void updateDiagnostics());
   // Diagramtypen visas bredvid panelens namn i stället för som en egen rotnod.
   state.onDidChange(() => { view.description = state.model?.diagramType || undefined; });
 
