@@ -38,15 +38,19 @@ async function openMermaid() {
       mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', ...config });
       try {
         const { svg } = await mermaid.render(renderId, text);
-        const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
-        const nodeId = new RegExp(`^${renderId}-(?:flowchart|state)-(.+)-\\d+$`);
+        // HTML-parsern, eftersom länkade klasser har xlink:href utan deklarerat prefix.
+        const tpl = document.createElement('template');
+        tpl.innerHTML = svg;
+        const doc = tpl.content;
+        const nodeId = new RegExp(`^${renderId}-(?:flowchart|state|classId)-(.+)-\\d+$`);
         const all = [...doc.querySelectorAll('g.node, g.rough-node')].map(g => ({
           id: (nodeId.exec(g.id) || [])[1] ?? null,
           domId: g.id,
           dataId: g.getAttribute('data-id'),
           classes: g.getAttribute('class'),
         }));
-        const isNote = n => /\bstatediagram-note\b/.test(n.classes);
+        // State: statediagram-note. Class: g.node med id <renderId>-noteN.
+        const isNote = n => /\bstatediagram-note\b/.test(n.classes) || /-note\d+$/.test(n.domId);
         const nodes = all.filter(n => !isNote(n));
         const notes = all.filter(isNote);
         // Flowchart: g.cluster med id <renderId>-<id>. State: g.statediagram-cluster med id som noder.
@@ -58,7 +62,7 @@ async function openMermaid() {
           ...[...doc.querySelectorAll('g.statediagram-cluster')].map(g => ({ id: (nodeId.exec(g.id) || [])[1] ?? g.id, domId: g.id })),
         ];
         const paths = [...doc.querySelectorAll('g.edgePaths > path')];
-        const edges = paths.filter(p => !p.id.includes('----note')).length;
+        const edges = paths.filter(p => !p.id.includes('----note') && !/-edgeNote\d+$/.test(p.id)).length;
         // Sequence diagram: deltagare har bara ett name-attribut, meddelanden och anteckningar är texter.
         const seq = {
           actors: [...doc.querySelectorAll('.actor-top[name]')].map(e => e.getAttribute('name')),
@@ -80,7 +84,7 @@ async function openMermaid() {
           }),
           // Box ritas också som rect.rect men inuti en g; rect-block ligger direkt under svg.
           boxRects: doc.querySelectorAll('g > rect.rect').length,
-          rects: [...doc.documentElement.children].filter(r => r.matches('rect.rect')).map(r => ({ top: +r.getAttribute('y'), bottom: +r.getAttribute('y') + +r.getAttribute('height') })),
+          rects: [...doc.querySelector('svg').children].filter(r => r.matches('rect.rect')).map(r => ({ top: +r.getAttribute('y'), bottom: +r.getAttribute('y') + +r.getAttribute('height') })),
           noteBoxes: [...doc.querySelectorAll('rect.note')].map(r => ({ top: +r.getAttribute('y'), bottom: +r.getAttribute('y') + +r.getAttribute('height') })),
           messageY: [...doc.querySelectorAll('.messageText')].map(e => +e.getAttribute('y')),
         };

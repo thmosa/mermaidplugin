@@ -106,7 +106,7 @@
       }
     },
     "keyword": {
-      "match": "^\\s*(subgraph|end|state|direction|participant|actor|loop|alt|else|opt|par|and|critical|option|break|rect|box|activate|deactivate|autonumber|title|section|accTitle|accDescr)\\b|\\b(as)\\b",
+      "match": "^\\s*(subgraph|end|state|direction|participant|actor|class|namespace|cssClass|click|link|callback|loop|alt|else|opt|par|and|critical|option|break|rect|box|activate|deactivate|autonumber|title|section|accTitle|accDescr)\\b|\\b(as)\\b",
       "name": "keyword.control.mermaid"
     },
     "direction": {

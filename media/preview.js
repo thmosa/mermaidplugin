@@ -18,7 +18,8 @@
   const NODE_SEL = 'g.node, g.rough-node';
   // Flowchart: g.cluster med id <renderId>-<id>. State diagram: g.statediagram-cluster med nod-liknande id.
   const CLUSTER_SEL = 'g.cluster, g.statediagram-cluster';
-  const NODE_ID_RE = /-(?:flowchart|state)-(.+)-\d+$/;
+  // Class diagram: klasser har id <renderId>-classId-<id>-<n>.
+  const NODE_ID_RE = /-(?:flowchart|state|classId)-(.+)-\d+$/;
   // Sequence diagram: deltagarna överst och nederst, identifierade med name-attributet.
   const ACTOR_SEL = '.actor-top[name], .actor-bottom[name]';
   // Texten i anteckningen som ersätter innehållet i ett hopfällt block (se sequenceParser.ts).
@@ -104,7 +105,7 @@
     if (kind === 'node') {
       const byData = [...svg.querySelectorAll(NODE_SEL)].find(g => g.dataset.id === id);
       if (byData) return byData;
-      const re = new RegExp(`-(?:flowchart|state)-${reEscape(id)}-\\d+$`);
+      const re = new RegExp(`-(?:flowchart|state|classId)-${reEscape(id)}-\\d+$`);
       return [...svg.querySelectorAll(NODE_SEL)].find(g => re.test(g.id))
         // Sequence: den övre rutan i första hand, den nedre om den övre saknas.
         || [...svg.querySelectorAll('.actor-top[name]')].find(a => a.getAttribute('name') === id)

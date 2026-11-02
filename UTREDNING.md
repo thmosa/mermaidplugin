@@ -251,10 +251,11 @@ Spiken är ett fungerande VS Code-tillägg i den här mappen, med Mermaid 12.1.0
 - Testverktyget kunde inte skicka Ctrl tillsammans med scroll. Zoomen verifierades därför med syntetiska wheel-händelser.
 - **`%%` i radslut är ett syntaxfel i Mermaid 12.1 för flowcharts.** Parsern lämnar därför sådana rader
   orörda, så att förhandsvisningen visar samma fel som Mermaid.
-- **Strängar över flera rader** (`A["Rad ett` + ny rad + `Rad två"]`), även markdown-strängar, ger i
-  Mermaid 12.1 **inget fel**. I stället tappas resten av diagrammet tyst. Det är dokumenterad syntax och ser
-  ut som ett fel i Mermaid. Parsern stöder syntaxen, så trädet kan visa noder som förhandsvisningen saknar.
-  Bör bevakas med ett kontraktstest och rapporteras till Mermaid.
+- **Strängar över flera rader** (`A["Rad ett` + ny rad + `Rad två"]`), även markdown-strängar, ritas korrekt
+  av Mermaid 12.1. *Rättelse:* tidigare stod här att resten av diagrammet tappades tyst. Det var fel. Det var
+  kontraktstestets hjälpare som tolkade SVG:n som XML (`DOMParser`) och avbröt på en `<br>` utan sluttagg.
+  Hjälparen tolkar nu SVG:n som HTML, precis som förhandsvisningen, och inlärningstestet visar att allt ritas.
+  Samma fel dolde klasser med länk (`click`/`link`) i class diagram (`xlink:href` utan deklarerat prefix).
 - **ELK lägger kantetiketter ovanpå varandra** när flera kanter går in i samma nod från en annan subgraf
   (i demo.mmd: `web & mobile -->|HTTPS| gw`). Dagre har inte felet, och ingen ELK-inställning i Mermaids
   config löste det i alla fall. Förhandsvisningen flyttar därför isär överlappande etiketter efter ritningen
@@ -270,7 +271,7 @@ Spiken är ett fungerande VS Code-tillägg i den här mappen, med Mermaid 12.1.0
   - `state B` utan något mer ritas inte. `B`, `B : text` och `state "Text" as B` ritas.
   - Kontraktstesterna hittade två krascher i filtret: en `--` mot en tom region ("No such shape: divider"),
     och `class`/`note` på ett tillstånd som inte längre ritas ("No such shape: undefined").
-- Kontrollen mot riktiga Mermaid hittade de två punkterna om `%%` och strängar över flera rader. Enhetstesterna kunde inte göra det,
+- Kontrollen mot riktiga Mermaid hittade punkten om `%%`. (Punkten om strängar över flera rader visade sig vara ett fel i testhjälparen, se ovan.) Enhetstesterna kunde inte göra det,
   eftersom de bara speglar vår egen tolkning. Det är ett starkt argument för automatiska kontraktstester.
 
 ### Tester

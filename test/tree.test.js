@@ -44,6 +44,7 @@ test('träd: diagramtyp som inte stöds ger en informationsrad', () => {
   assert.equal(items[0].kind, 'info');
   assert.match(items[0].text, /erDiagram/);
   assert.match(items[0].text, /sequence/);
+  assert.match(items[0].text, /class/);
 });
 
 test('träd: förälder är närmaste sammansatta tillstånd, gruppen för kanter, eller ingen', () => {

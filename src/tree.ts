@@ -18,7 +18,7 @@ const isSequence = (model: DiagramModel): model is SequenceModel => 'blocks' in 
 /** Barnen till `parent`, eller översta nivån. */
 export function children(model: DiagramModel, parent?: Item): Item[] {
   if (!model.supported) {
-    return parent ? [] : [{ kind: 'info', text: `Diagram type "${model.diagramType}" is not supported yet (only flowchart, state and sequence diagram)` }];
+    return parent ? [] : [{ kind: 'info', text: `Diagram type "${model.diagramType}" is not supported yet (only flowchart, state, sequence and class diagram)` }];
   }
   if (isSequence(model)) return sequenceChildren(model, parent);
   if (!parent || parent.kind === 'subgraph') {

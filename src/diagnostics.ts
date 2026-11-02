@@ -37,8 +37,8 @@ function mask(line: string, isState: boolean): string {
 export function caseConflicts(text: string, model: DiagramModel): CaseConflict[] {
   if (!model.supported) return [];
   const src = text.split(/\r?\n/);
-  // State och sequence har fri text efter kolon (övergångs- och meddelandetext).
-  const isState = /^(stateDiagram|sequenceDiagram)/.test(model.diagramType);
+  // State, sequence och class har fri text efter kolon (övergångs-, meddelande- och relationstext, medlemmar).
+  const isState = /^(stateDiagram|sequenceDiagram|classDiagram)/.test(model.diagramType);
 
   // Var varje id används: definitionsraden och raderna för kanter som rör det.
   const uses = new Map<string, Set<number>>();

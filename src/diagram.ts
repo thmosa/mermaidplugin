@@ -3,13 +3,14 @@
 import { FlowModel, parseFlowchart, filterFlowchart } from './parser';
 import { StateModel, parseState, filterState } from './stateParser';
 import { SequenceModel, SequenceRender, parseSequence, filterSequence, filterSequenceDetailed } from './sequenceParser';
+import { ClassModel, parseClass, filterClass } from './classParser';
 
-export type AnyModel = FlowModel | StateModel | SequenceModel;
+export type AnyModel = FlowModel | StateModel | SequenceModel | ClassModel;
 
 export function parseDiagram(text: string): AnyModel {
   const flow = parseFlowchart(text);
   if (flow.supported) return flow;
-  for (const parse of [parseState, parseSequence]) {
+  for (const parse of [parseState, parseSequence, parseClass]) {
     const m = parse(text);
     if (m.supported) return m;
   }
@@ -19,6 +20,7 @@ export function parseDiagram(text: string): AnyModel {
 export function filterDiagram(model: AnyModel, hidden: ReadonlySet<string>): string {
   if (/^stateDiagram/.test(model.diagramType)) return filterState(model as StateModel, hidden);
   if (model.diagramType === 'sequenceDiagram') return filterSequence(model as SequenceModel, hidden);
+  if (/^classDiagram/.test(model.diagramType)) return filterClass(model as ClassModel, hidden);
   return filterFlowchart(model as FlowModel, hidden);
 }
 

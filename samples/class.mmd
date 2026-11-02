@@ -1,0 +1,43 @@
+classDiagram
+  %% Exempel för att prova arbetsträdet med class diagram
+  direction TB
+  namespace Produktion {
+    class Order {
+      +String id
+      +int antal
+      +starta() bool
+    }
+    class Operation
+    namespace Maskiner {
+      class Maskin {
+        <<abstract>>
+        +String namn
+        +kör(Operation op)*
+      }
+      class CNC
+      class Robot
+    }
+  }
+  namespace Kvalitet {
+    class Kontroll
+    class Avvikelse~T~
+  }
+  class Kund["Kund (extern)"]
+  class Sparbar
+  <<interface>> Sparbar
+
+  Kund "1" --> "*" Order : beställer
+  Order "1" *-- "1..*" Operation : består av
+  Operation --> Maskin : körs på
+  Maskin <|-- CNC
+  Maskin <|-- Robot
+  Kontroll ..> Order : granskar
+  Kontroll --> Avvikelse : skapar
+  Avvikelse --> Operation : gäller
+  Order ..|> Sparbar
+  Order --> Faktura : skapar
+  Loggbar ()-- Maskin
+  CNC : +int varvtal
+  note for Maskin "Alla maskiner rapporterar till MES"
+  style Kund fill:#eef
+  click Order href "https://example.com/order"

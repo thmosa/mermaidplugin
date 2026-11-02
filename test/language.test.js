@@ -27,6 +27,7 @@ test('språk: indrag ökar efter rader som öppnar ett block', () => {
     '  state Crash {', '  state "Stor grupp" as G {',
     '  note left of Fel', '  note right of A',
     '  loop Varje minut', '  alt lyckas', '  else misslyckas', '  opt valfritt', '  par parallellt', '  rect rgb(0,0,0)',
+    'classDiagram', '  class Animal {', '  namespace Zoo {',
   ]) assert.match(line, increase, line);
 });
 
@@ -85,4 +86,11 @@ test('språk: package.json kopplar konfiguration och grammatik till mermaid', ()
   const grammar = pkg.contributes.grammars.find(g => g.language === 'mermaid');
   assert.ok(fs.existsSync(path.join(root, grammar.path)), grammar.path);
   assert.equal(grammar.scopeName, 'source.mermaid');
+});
+
+test('grammatik: nyckelord för class diagram färgas', () => {
+  const grammar = JSON.parse(fs.readFileSync(path.join(root, 'syntaxes', 'mermaid.tmLanguage.json'), 'utf8'));
+  const keywords = JSON.stringify(grammar).match(/\(subgraph\|[^)]*\)/)[0];
+  const re = new RegExp(String.raw`^\s*${keywords}\b`);
+  for (const word of ['class', 'namespace', 'cssClass', 'click', 'link', 'callback']) assert.match(`  ${word} X`, re, word);
 });

@@ -143,7 +143,9 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
       ? { group: 'composite state', node: 'state', edges: 'Transitions', groupIcon: 'symbol-class', nodeIcon: 'symbol-constant', groupItem: 'subgraph' }
       : m.diagramType === 'sequenceDiagram'
         ? { group: 'box', node: 'participant', edges: 'Messages', groupIcon: 'package', nodeIcon: 'person', groupItem: 'box' }
-        : { group: 'subgraph', node: 'node', edges: 'Edges', groupIcon: 'symbol-namespace', nodeIcon: 'symbol-constant', groupItem: 'subgraph' };
+        : /^classDiagram/.test(m.diagramType)
+          ? { group: 'namespace', node: 'class', edges: 'Relations', groupIcon: 'symbol-namespace', nodeIcon: 'symbol-class', groupItem: 'subgraph' }
+          : { group: 'subgraph', node: 'node', edges: 'Edges', groupIcon: 'symbol-namespace', nodeIcon: 'symbol-constant', groupItem: 'subgraph' };
 
     switch (i.kind) {
       case 'info': {

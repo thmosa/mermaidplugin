@@ -63,10 +63,13 @@ test('känt Mermaid-fel: %% i radslut ger syntaxfel', async () => {
   assert.match(r.error, /Parse error/);
 });
 
-test('känt Mermaid-fel: sträng över flera rader tappar resten av diagrammet utan fel', async () => {
+// Tidigare trodde vi att Mermaid tappade resten av diagrammet här. Det var testets XML-tolkning
+// (DOMParser) som avbröt på en <br> utan sluttagg; HTML-tolkningen, som förhandsvisningen använder, får med allt.
+test('inlärning: sträng över flera rader ritar hela diagrammet', async () => {
   const r = await mm.render('flowchart LR\n  ML["`Rad ett\n  Rad två`"] --> N\n  N --> O');
   assert.equal(r.ok, true);
-  assert.deepEqual(r.nodes.map(n => n.id), ['ML']);
+  assert.deepEqual(r.nodes.map(n => n.id), ['ML', 'N', 'O']);
+  assert.equal(r.edges, 2);
 });
 
 test('känt Mermaid-fel: ELK lägger kantetiketter ovanpå varandra när kanter korsar in i en subgraf', async () => {

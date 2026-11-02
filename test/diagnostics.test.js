@@ -41,6 +41,11 @@ test('versaler: diagramtyper som inte stöds ger inga varningar', () => {
   assert.deepEqual(find('erDiagram\n  A ||--o{ a : has'), []);
 });
 
+test('versaler: class markerar klasser men inte ord i relationsetiketter eller medlemsrader', () => {
+  const text = 'classDiagram\n  class Order\n  Kund --> order : Order skapas\n  Kund : +Order senaste';
+  assert.deepEqual(find(text).map(x => [x.line, at(text, x)]), [[1, 'Order'], [2, 'order']]);
+});
+
 test('versaler: sequence markerar deltagare men inte ord i meddelandetexten', () => {
   const text = 'sequenceDiagram\n  Order->>DB: Order sparas\n  order->>DB: order';
   assert.deepEqual(find(text).map(x => [x.line, at(text, x)]), [[1, 'Order'], [2, 'order']]);
