@@ -1,0 +1,42 @@
+sequenceDiagram
+  %% Exempel för att prova arbetsträdet med sequence diagram
+  title Beställning
+  autonumber
+  actor U as Användare
+  box Aqua Backend
+    participant API as API-gateway
+    participant Order as Ordertjänst
+    participant DB as Postgres
+  end
+  participant Pay as Betalning
+
+  U->>+API: Lägg order
+  API->>+Order: skapa(order)
+  Order->>DB: INSERT order
+  DB-->>Order: id
+  alt kortbetalning
+    Order->>Pay: debitera
+    Pay-->>Order: ok
+  else faktura
+    Order->>Order: skapa faktura
+  end
+  loop var 5:e sekund
+    API->>Order: status?
+    Order-->>API: pågår
+    opt tar för lång tid
+      API-->>U: vänta lite
+    end
+  end
+  Order-->>-API: klar
+  API-->>-U: Orderbekräftelse
+  Note over API,Order: hela flödet loggas
+  Note right of U: väntar på mejl
+  create participant Mail as Mejltjänst
+  Order->>Mail: skicka bekräftelse
+  destroy Mail
+  Mail-->>Order: skickat
+  rect rgb(240, 240, 240)
+    activate DB
+    DB->>DB: städa gamla rader
+    deactivate DB
+  end

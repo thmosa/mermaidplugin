@@ -19,11 +19,20 @@
   // Flowchart: g.cluster med id <renderId>-<id>. State diagram: g.statediagram-cluster med nod-liknande id.
   const CLUSTER_SEL = 'g.cluster, g.statediagram-cluster';
   const NODE_ID_RE = /-(?:flowchart|state)-(.+)-\d+$/;
+  // Sequence diagram: deltagarna överst och nederst, identifierade med name-attributet.
+  const ACTOR_SEL = '.actor-top[name], .actor-bottom[name]';
+  // Texten i anteckningen som ersätter innehållet i ett hopfällt block (se sequenceParser.ts).
+  const PLACEHOLDER_RE = /^(\d+ messages? hidden|collapsed)$/;
 
   let svg = null;
   let base = null;            // diagrammets ursprungliga viewBox {x,y,w,h}
   let view = null;            // {cx, cy, s}: mittpunkt i diagramkoordinater, s = skärm-px per diagramenhet
   let selected = null;        // {kind, id}
+  // Sequence: block-id:n i samma ordning som ramarna i SVG:n, och vilka som är hopfällda.
+  let blocks = [];
+  let rects = [];
+  let sections = {};          // block-id → grenarna som ritas, i sectionTitle-ordning
+  let collapsed = [];
   let lastText = '';
   let renderSeq = 0;
   let animation = 0;
@@ -86,13 +95,34 @@
 
   const reEscape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+  // Block (loop, alt …) är en g med loopLine-linjer; rect-block är rect.rect direkt under svg.
+  const frameEls = () => [...svg.querySelectorAll('g')].filter(g => g.querySelector(':scope > line.loopLine'));
+  const rectEls = () => [...svg.children].filter(e => e.matches('rect.rect'));
+
   function findElement(kind, id) {
     if (!svg) return null;
     if (kind === 'node') {
       const byData = [...svg.querySelectorAll(NODE_SEL)].find(g => g.dataset.id === id);
       if (byData) return byData;
       const re = new RegExp(`-(?:flowchart|state)-${reEscape(id)}-\\d+$`);
-      return [...svg.querySelectorAll(NODE_SEL)].find(g => re.test(g.id)) || null;
+      return [...svg.querySelectorAll(NODE_SEL)].find(g => re.test(g.id))
+        // Sequence: den övre rutan i första hand, den nedre om den övre saknas.
+        || [...svg.querySelectorAll('.actor-top[name]')].find(a => a.getAttribute('name') === id)
+        || [...svg.querySelectorAll(ACTOR_SEL)].find(a => a.getAttribute('name') === id)
+        || null;
+    }
+    if (kind === 'block') {
+      const i = blocks.indexOf(id);
+      if (i >= 0) return frameEls()[i] || null;
+      const j = rects.indexOf(id);
+      if (j >= 0) return rectEls()[j] || null;
+      // En gren: dess rubrik i blockets ram.
+      for (const [block, list] of Object.entries(sections)) {
+        const k = list.indexOf(id);
+        const frame = k >= 0 && findElement('block', block);
+        if (frame) return frame.querySelectorAll(':scope > .sectionTitle')[k] || null;
+      }
+      return null;
     }
     if (kind === 'subgraph') {
       const re = new RegExp(`-state-${reEscape(id)}-\\d+$`);
@@ -104,7 +134,61 @@
     return null;
   }
 
+  /** Blocket som ett klick på en ram, en rect eller anteckningen i ett hopfällt block gäller. */
+  function identifyBlock(el) {
+    // Typen (alt, loop …) gäller hela blocket, titeln bredvid gäller huvudgrenen.
+    const label = el.closest('.labelBox, .labelText, .loopText');
+    if (label) {
+      const i = frameEls().indexOf(label.parentElement);
+      if (i >= 0 && blocks[i]) return { kind: 'block', id: blocks[i], toggle: true, branch: label.matches('.loopText') };
+    }
+    const title = el.closest('.sectionTitle');
+    if (title) {
+      const frame = title.parentElement;
+      const block = blocks[frameEls().indexOf(frame)];
+      const k = [...frame.querySelectorAll(':scope > .sectionTitle')].indexOf(title);
+      const id = block && sections[block]?.[k];
+      if (id) return { kind: 'block', id, toggle: true };
+    }
+    if (el.matches('rect.rect') && el.parentElement === svg) {
+      const j = rectEls().indexOf(el);
+      if (rects[j]) return { kind: 'block', id: rects[j], toggle: false };
+    }
+    // Anteckningen i ett hopfällt block eller en hopfälld gren: den minsta ramen som omsluter
+    // anteckningen, och i den grenen vars rubrik ligger närmast ovanför.
+    const g = (el.matches('rect.note') || el.closest('.noteText')) && el.closest('g');
+    const note = g && g.querySelector('rect.note');
+    if (note && PLACEHOLDER_RE.test(g.querySelector('.noteText')?.textContent.trim() ?? '')) {
+      const n = note.getBoundingClientRect();
+      const cx = n.left + n.width / 2;
+      const cy = n.top + n.height / 2;
+      let best = null;
+      const frames = [...frameEls().map((f, i) => [blocks[i], f]), ...rectEls().map((f, i) => [rects[i], f])];
+      for (const [id, frame] of frames) {
+        const b = frame.getBoundingClientRect();
+        if (!id || cx < b.left || cx > b.right || cy < b.top || cy > b.bottom) continue;
+        if (!best || b.width * b.height < best.area) best = { id, el: frame, area: b.width * b.height };
+      }
+      if (best) {
+        const above = [...best.el.querySelectorAll(':scope > .sectionTitle')].filter(t => t.getBoundingClientRect().top < n.top).length;
+        const main = `${best.id}:0`;
+        const id = above ? sections[best.id]?.[above - 1] : collapsed.includes(main) ? main : best.id;
+        if (id && collapsed.includes(id)) return { kind: 'block', id, toggle: true };
+      }
+    }
+    return null;
+  }
+
   function identify(el) {
+    const block = identifyBlock(el);
+    if (block) return block;
+    // Sequence: deltagarens ruta har name-attributet; texten (text > tspan) ligger bredvid i samma grupp.
+    const direct = `:scope > ${ACTOR_SEL.split(', ').join(', :scope > ')}`;
+    let n = el;
+    for (let depth = 0; n && n !== svg && depth < 4; depth++, n = n.parentElement) {
+      const actor = n.matches(ACTOR_SEL) ? n : n.querySelector(direct);
+      if (actor) return { kind: 'node', id: actor.getAttribute('name') };
+    }
     const node = el.closest(NODE_SEL);
     if (node) {
       const id = node.dataset.id || (NODE_ID_RE.exec(node.id) || [])[1];
@@ -263,9 +347,9 @@
     const under = document.elementFromPoint(e.clientX, e.clientY);
     const hit = under && identify(under);
     if (hit) {
-      selected = hit;
+      selected = { kind: hit.kind, id: hit.id };
       highlight();
-      vscode.postMessage({ type: 'clicked', kind: hit.kind, id: hit.id });
+      vscode.postMessage({ type: 'clicked', kind: hit.kind, id: hit.id, toggle: hit.toggle === true, branch: hit.branch === true });
     }
   });
 
@@ -300,7 +384,13 @@
 
   window.addEventListener('message', e => {
     const msg = e.data;
-    if (msg.type === 'render') render(msg.text);
+    if (msg.type === 'render') {
+      blocks = msg.blocks || [];
+      rects = msg.rects || [];
+      sections = msg.sections || {};
+      collapsed = msg.collapsed || [];
+      render(msg.text);
+    }
     if (msg.type === 'focus') focusElement(msg.kind, msg.id);
   });
 

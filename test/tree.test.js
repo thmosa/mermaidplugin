@@ -39,10 +39,11 @@ test('träd: utan kanter blir det ingen övergångsgrupp', () => {
 });
 
 test('träd: diagramtyp som inte stöds ger en informationsrad', () => {
-  const items = children(parseDiagram('sequenceDiagram\n  A->>B: hi'));
+  const items = children(parseDiagram('erDiagram\n  A ||--o{ B : has'));
   assert.equal(items.length, 1);
   assert.equal(items[0].kind, 'info');
-  assert.match(items[0].text, /sequenceDiagram/);
+  assert.match(items[0].text, /erDiagram/);
+  assert.match(items[0].text, /sequence/);
 });
 
 test('träd: förälder är närmaste sammansatta tillstånd, gruppen för kanter, eller ingen', () => {
@@ -58,4 +59,59 @@ test('träd: grupper börjar hopfällda, tillstånd och kanter går inte att fä
   assert.equal(initialState({ kind: 'edgeGroup' }), 'collapsed');
   assert.equal(initialState({ kind: 'node', id: 'Idle' }), 'none');
   assert.equal(initialState({ kind: 'edge', key: 'Idle->Busy#0' }), 'none');
+});
+
+// ---------------------------------------------------------------- sequence diagram
+
+const showSeq = items => items.map(i => i.kind === 'edge' ? `edge:${i.key}` : i.kind === 'participants' ? 'participants' : `${i.kind}:${i.id}`);
+
+const seq = parseDiagram(`sequenceDiagram
+  actor U
+  box Backend
+    participant API
+  end
+  U->>API: m0
+  alt betald
+    API->>U: m1
+    loop L
+      U->>API: m2
+    end
+  else obetald
+    API->>Pay: m3
+  end
+  API-->>U: m4`);
+
+test('träd sequence: överst deltagarna, sedan flödet i radordning med block som grenar', () => {
+  assert.deepEqual(showSeq(children(seq)), ['participants', 'edge:U->API#0', 'block:block0', 'edge:API->U#1']);
+});
+
+test('träd sequence: deltagargruppen har box och deltagare utan box', () => {
+  assert.deepEqual(showSeq(children(seq, { kind: 'participants' })), ['subgraph:box0', 'node:U', 'node:Pay']);
+  assert.deepEqual(showSeq(children(seq, { kind: 'subgraph', id: 'box0' })), ['node:API']);
+});
+
+test('träd sequence: ett block med else har huvudgrenen och övriga grenar som undernivåer', () => {
+  assert.deepEqual(showSeq(children(seq, { kind: 'block', id: 'block0' })), ['block:block0:0', 'block:block0:1']);
+  assert.deepEqual(showSeq(children(seq, { kind: 'block', id: 'block0:0' })), ['edge:API->U#0', 'block:block1']);
+  assert.deepEqual(showSeq(children(seq, { kind: 'block', id: 'block1' })), ['edge:U->API#1']);
+  assert.deepEqual(showSeq(children(seq, { kind: 'block', id: 'block0:1' })), ['edge:API->Pay#0']);
+});
+
+test('träd sequence: förälder för meddelanden, block, grenar, box och deltagare', () => {
+  assert.equal(parentOf(seq, { kind: 'edge', key: 'U->API#0' }), undefined);
+  assert.deepEqual(parentOf(seq, { kind: 'edge', key: 'U->API#1' }), { kind: 'block', id: 'block1' });
+  assert.deepEqual(parentOf(seq, { kind: 'edge', key: 'API->Pay#0' }), { kind: 'block', id: 'block0:1' });
+  assert.deepEqual(parentOf(seq, { kind: 'block', id: 'block1' }), { kind: 'block', id: 'block0:0' });
+  assert.deepEqual(parentOf(seq, { kind: 'edge', key: 'API->U#0' }), { kind: 'block', id: 'block0:0' });
+  assert.deepEqual(parentOf(seq, { kind: 'block', id: 'block0:0' }), { kind: 'block', id: 'block0' });
+  assert.deepEqual(parentOf(seq, { kind: 'block', id: 'block0:1' }), { kind: 'block', id: 'block0' });
+  assert.equal(parentOf(seq, { kind: 'block', id: 'block0' }), undefined);
+  assert.deepEqual(parentOf(seq, { kind: 'subgraph', id: 'box0' }), { kind: 'participants' });
+  assert.deepEqual(parentOf(seq, { kind: 'node', id: 'API' }), { kind: 'subgraph', id: 'box0' });
+  assert.deepEqual(parentOf(seq, { kind: 'node', id: 'U' }), { kind: 'participants' });
+});
+
+test('träd sequence: deltagare och block börjar hopfällda', () => {
+  assert.equal(initialState({ kind: 'participants' }), 'collapsed');
+  assert.equal(initialState({ kind: 'block', id: 'block0' }), 'collapsed');
 });

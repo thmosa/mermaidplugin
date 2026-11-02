@@ -169,10 +169,13 @@ test('diagram: väljer parser och filter efter diagramtyp', () => {
   const f = parseDiagram('flowchart LR\n  A --> B\n  B --> C');
   assert.equal(f.supported, true);
   assert.equal(filterDiagram(f, new Set([nodeKey('C')])), 'flowchart LR\n  A --> B');
-  const other = parseDiagram('sequenceDiagram\n  A->>B: hej');
+  const seq = parseDiagram('sequenceDiagram\n  A->>B: hej\n  B->>C: då');
+  assert.equal(seq.supported, true);
+  assert.equal(filterDiagram(seq, new Set([nodeKey('C')])), 'sequenceDiagram\n  A->>B: hej');
+  const other = parseDiagram('classDiagram\n  A <|-- B');
   assert.equal(other.supported, false);
-  assert.equal(other.diagramType, 'sequenceDiagram');
-  assert.equal(filterDiagram(other, new Set([nodeKey('A')])), 'sequenceDiagram\n  A->>B: hej');
+  assert.equal(other.diagramType, 'classDiagram');
+  assert.equal(filterDiagram(other, new Set([nodeKey('A')])), 'classDiagram\n  A <|-- B');
 });
 
 test('state: fokusläge fungerar med grannar via övergångar', () => {

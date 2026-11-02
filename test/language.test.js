@@ -65,10 +65,17 @@ test('meny: grupper i trädet kan fällas ihop och ut i diagrammet', () => {
   assert.equal(title('mermaidTree.collapseGroup'), 'Collapse in Diagram');
   assert.equal(title('mermaidTree.expandGroup'), 'Expand in Diagram');
   const items = pkg.contributes.menus['view/item/context'];
-  const whenFor = id => items.filter(m => m.command === id).map(m => m.when);
-  assert.ok(whenFor('mermaidTree.collapseGroup').some(w => /viewItem == subgraph\b/.test(w)));
-  assert.ok(whenFor('mermaidTree.expandGroup').some(w => /viewItem == subgraphCollapsed/.test(w)));
-  assert.ok(whenFor('mermaidTree.hideItem').some(w => /subgraphCollapsed/.test(w)), 'hopfälld grupp ska också gå att dölja');
+  // Tolkar viewItem == x och viewItem =~ /re/ i when-villkoret.
+  const shownFor = (id, viewItem) => items.filter(m => m.command === id).some(m => {
+    const eq = /viewItem == (\w+)/.exec(m.when);
+    const re = /viewItem =~ \/(.+?)\/(?:\s|$)/.exec(m.when);
+    return eq ? eq[1] === viewItem : re ? new RegExp(re[1]).test(viewItem) : false;
+  });
+  for (const item of ['subgraph', 'section']) assert.ok(shownFor('mermaidTree.collapseGroup', item), item);
+  for (const item of ['subgraphCollapsed', 'sectionCollapsed']) assert.ok(shownFor('mermaidTree.expandGroup', item), item);
+  assert.ok(!shownFor('mermaidTree.collapseGroup', 'subgraphCollapsed'));
+  assert.ok(shownFor('mermaidTree.hideItem', 'subgraphCollapsed'), 'hopfälld grupp ska också gå att dölja');
+  assert.ok(!shownFor('mermaidTree.hideItem', 'section'), 'en gren går inte att dölja');
 });
 
 test('språk: package.json kopplar konfiguration och grammatik till mermaid', () => {

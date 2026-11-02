@@ -1,0 +1,66 @@
+sequenceDiagram
+  %% Exempel: produktionsorder i en fabrik, med omstarter i flera nivåer
+  title Produktionsorder med omstart
+  autonumber
+  actor Op as Operatör
+  participant MES as MES-system
+  participant PLC as Maskin (PLC)
+  actor UH as Underhåll
+
+  Op->>+MES: Starta order 4711
+  MES->>PLC: Ladda recept
+  PLC-->>MES: Recept laddat
+  MES->>+PLC: Starta cykel
+
+  alt cykeln går igenom
+    PLC-->>MES: Cykel klar
+    MES-->>Op: 500 st producerade
+  else maskinlarm
+    PLC-->>MES: Larm E-17
+    MES->>Op: Visa larm
+    alt mjukt fel (t.ex. sensor)
+      Op->>PLC: Kvittera larm
+      Op->>PLC: Mjuk omstart
+      alt omstart lyckas
+        PLC-->>MES: Cykel återupptagen
+        MES-->>Op: Fortsätter produktion
+      else omstart misslyckas
+        PLC-->>Op: Larm kvarstår
+        Op->>UH: Begär felsökning
+        loop tills felet är hittat
+          UH->>PLC: Läs diagnostik
+          PLC-->>UH: Felkod
+        end
+        alt reservdel finns i lager
+          UH->>PLC: Byt komponent
+          UH->>PLC: Kall omstart
+          PLC-->>MES: Cykel återupptagen
+        else reservdel saknas
+          UH->>MES: Pausa order
+          MES-->>Op: Order pausad
+        end
+      end
+    else hårt fel (nödstopp)
+      PLC-->>MES: Nödstopp utlöst
+      MES->>UH: Larma underhåll
+      critical säkerhetskontroll
+        UH->>PLC: Kontrollera skydd
+        UH->>Op: Godkänn återstart
+      option kontrollen underkänns
+        UH->>MES: Spärra maskinen
+      end
+      opt maskinen godkänd
+        Op->>PLC: Återställ nödstopp
+        PLC-->>MES: Redo
+      end
+    end
+  end
+
+  deactivate PLC
+  par rapportera
+    MES->>Op: Skiftrapport
+  and
+    MES->>UH: Underhållslogg
+  end
+  Note over MES,PLC: Alla händelser sparas i MES
+  MES-->>-Op: Order avslutad

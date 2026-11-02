@@ -15,7 +15,8 @@ test.after(async () => { await mm?.close(); });
 const SAMPLES = path.join(__dirname, '..', 'samples');
 const samples = fs.readdirSync(SAMPLES).filter(f => f.endsWith('.mmd'))
   .map(f => ({ name: f, model: parseDiagram(fs.readFileSync(path.join(SAMPLES, f), 'utf8')) }))
-  .filter(s => s.model.supported && s.model.subgraphs.size > 0);
+  // Hopfällning finns för flowchart och state; box i sequence går inte att fälla ihop än.
+  .filter(s => s.model.supported && s.model.subgraphs.size > 0 && s.model.diagramType !== 'sequenceDiagram');
 
 /** Det modellen säger att Mermaid ska rita. */
 function expected(model, hidden) {

@@ -59,10 +59,35 @@ async function openMermaid() {
         ];
         const paths = [...doc.querySelectorAll('g.edgePaths > path')];
         const edges = paths.filter(p => !p.id.includes('----note')).length;
-        return { ok: true, error: null, renderId, nodes, notes, clusters, edges };
+        // Sequence diagram: deltagare har bara ett name-attribut, meddelanden och anteckningar är texter.
+        const seq = {
+          actors: [...doc.querySelectorAll('.actor-top[name]')].map(e => e.getAttribute('name')),
+          messages: [...doc.querySelectorAll('.messageText')].map(e => e.textContent),
+          notes: [...doc.querySelectorAll('.noteText')].map(e => e.textContent),
+          numbers: [...doc.querySelectorAll('.sequenceNumber')].map(e => e.textContent),
+          // Block (loop, alt …) är en g med loopLine-linjer; rect är en egen rect.rect.
+          blocks: [...doc.querySelectorAll('g')].filter(g => [...g.children].some(c => c.matches('line.loopLine'))).map(g => {
+            const ys = [...g.querySelectorAll(':scope > line.loopLine')].flatMap(l => [+l.getAttribute('y1'), +l.getAttribute('y2')]);
+            return {
+              label: g.querySelector(':scope > .labelText')?.textContent ?? null,
+              // En lång titel i ett smalt block delas över flera loopText, mitt i ord med bindestreck.
+              title: [...g.querySelectorAll(':scope > .loopText')].map(t => t.textContent)
+                .reduce((acc, part) => acc === null ? part : acc.endsWith('-') ? acc.slice(0, -1) + part : `${acc} ${part}`, null),
+              top: Math.min(...ys), bottom: Math.max(...ys),
+              // Grenarnas rubriker (else, and, option) i ordning.
+              sections: [...g.querySelectorAll(':scope > .sectionTitle')].map(t => ({ title: t.textContent, y: +t.getAttribute('y') })),
+            };
+          }),
+          // Box ritas också som rect.rect men inuti en g; rect-block ligger direkt under svg.
+          boxRects: doc.querySelectorAll('g > rect.rect').length,
+          rects: [...doc.documentElement.children].filter(r => r.matches('rect.rect')).map(r => ({ top: +r.getAttribute('y'), bottom: +r.getAttribute('y') + +r.getAttribute('height') })),
+          noteBoxes: [...doc.querySelectorAll('rect.note')].map(r => ({ top: +r.getAttribute('y'), bottom: +r.getAttribute('y') + +r.getAttribute('height') })),
+          messageY: [...doc.querySelectorAll('.messageText')].map(e => +e.getAttribute('y')),
+        };
+        return { ok: true, error: null, renderId, nodes, notes, clusters, edges, seq };
       } catch (e) {
         document.getElementById('d' + renderId)?.remove();
-        return { ok: false, error: String(e && e.message || e), renderId, nodes: [], notes: [], clusters: [], edges: 0 };
+        return { ok: false, error: String(e && e.message || e), renderId, nodes: [], notes: [], clusters: [], edges: 0, seq: null };
       }
     }, { text, config, renderId });
   }

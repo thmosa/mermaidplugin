@@ -38,5 +38,10 @@ test('versaler: start- och slutpunkter ([*]) ingår inte', () => {
 });
 
 test('versaler: diagramtyper som inte stöds ger inga varningar', () => {
-  assert.deepEqual(find('sequenceDiagram\n  A->>a: hej'), []);
+  assert.deepEqual(find('erDiagram\n  A ||--o{ a : has'), []);
+});
+
+test('versaler: sequence markerar deltagare men inte ord i meddelandetexten', () => {
+  const text = 'sequenceDiagram\n  Order->>DB: Order sparas\n  order->>DB: order';
+  assert.deepEqual(find(text).map(x => [x.line, at(text, x)]), [[1, 'Order'], [2, 'order']]);
 });

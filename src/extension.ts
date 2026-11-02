@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { FlowEdge, visibility, neighborhood, nodeKey, edgeKey, subgraphKey, collapseKey } from './parser';
-import { AnyModel, parseDiagram, filterDiagram } from './diagram';
+import { AnyModel, parseDiagram, renderInfo } from './diagram';
+import { SequenceModel, SequenceRender, blockSuppressor } from './sequenceParser';
 import { caseConflicts } from './diagnostics';
 import { checkSyntax } from './mermaidCheck';
 import { syntaxDiagnostic } from './syntax';
@@ -54,9 +55,12 @@ class DiagramState {
     this.commit();
   }
 
-  filteredText(): string {
-    if (!this.doc || !this.model) return '';
-    return filterDiagram(this.model, this.hidden);
+  /** Texten att rendera, och för sequence vilka block som ritas och vilka av dem som är hopfällda. */
+  rendered(): SequenceRender & { collapsed: string[] } {
+    if (!this.doc || !this.model) return { text: '', blocks: [], rects: [], sections: {}, collapsed: [] };
+    const info = renderInfo(this.model, this.hidden);
+    const drawn = [...info.blocks, ...info.rects, ...Object.values(info.sections).flat(), ...info.blocks.map(id => `${id}:0`)];
+    return { ...info, collapsed: drawn.filter(id => this.hidden.has(collapseKey(id))) };
   }
 
   private commit() {
@@ -80,8 +84,16 @@ const COLLAPSIBLE = {
 const itemKey = (i: Item) =>
   i.kind === 'edge' ? edgeKey(i.key)
     : i.kind === 'node' ? nodeKey(i.id)
-      : i.kind === 'subgraph' ? subgraphKey(i.id)
+      : i.kind === 'subgraph' || i.kind === 'block' ? subgraphKey(i.id)
         : i.kind;
+
+const isSequence = (m: AnyModel): m is SequenceModel => m.diagramType === 'sequenceDiagram';
+
+// Ikoner för blocken i ett sequence diagram.
+const BLOCK_ICONS: Record<string, string> = {
+  loop: 'sync', alt: 'question', opt: 'question', par: 'split-horizontal', par_over: 'split-horizontal',
+  critical: 'warning', break: 'debug-stop', rect: 'symbol-color',
+};
 
 class StructureProvider implements vscode.TreeDataProvider<Item> {
   private readonly changed = new vscode.EventEmitter<Item | undefined>();
@@ -101,9 +113,10 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
     return i;
   }
 
-  find(kind: 'node' | 'subgraph', id: string): Item | undefined {
+  find(kind: 'node' | 'subgraph' | 'block', id: string): Item | undefined {
     const m = this.state.model;
     if (!m) return undefined;
+    if (kind === 'block' && isSequence(m) && m.blocks.has(id)) return this.item({ kind, id });
     if (kind === 'node' && m.nodes.has(id)) return this.item({ kind, id });
     if (kind === 'subgraph' && m.subgraphs.has(id)) return this.item({ kind, id });
     return undefined;
@@ -125,7 +138,12 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
     const vis = visibility(m, this.state.hidden);
     const check = (hidden: boolean) => hidden ? vscode.TreeItemCheckboxState.Unchecked : vscode.TreeItemCheckboxState.Checked;
     const label = (id: string) => m.nodes.get(id)?.label ?? m.subgraphs.get(id)?.title ?? id;
-    const isState = /^stateDiagram/.test(m.diagramType);
+    // Ord och ikoner efter diagramtyp. Sequence-box kan inte fällas ihop (inget kontextvärde för det).
+    const words = /^stateDiagram/.test(m.diagramType)
+      ? { group: 'composite state', node: 'state', edges: 'Transitions', groupIcon: 'symbol-class', nodeIcon: 'symbol-constant', groupItem: 'subgraph' }
+      : m.diagramType === 'sequenceDiagram'
+        ? { group: 'box', node: 'participant', edges: 'Messages', groupIcon: 'package', nodeIcon: 'person', groupItem: 'box' }
+        : { group: 'subgraph', node: 'node', edges: 'Edges', groupIcon: 'symbol-namespace', nodeIcon: 'symbol-constant', groupItem: 'subgraph' };
 
     switch (i.kind) {
       case 'info': {
@@ -138,8 +156,8 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
         const t = new vscode.TreeItem(sg.title, COLLAPSIBLE[initialState(i)]);
         t.id = subgraphKey(i.id);
         const collapsed = this.state.hidden.has(collapseKey(i.id));
-        t.iconPath = new vscode.ThemeIcon(isState ? 'symbol-class' : 'symbol-namespace');
-        t.contextValue = collapsed ? 'subgraphCollapsed' : 'subgraph';
+        t.iconPath = new vscode.ThemeIcon(words.groupIcon);
+        t.contextValue = words.groupItem === 'box' ? 'box' : collapsed ? 'subgraphCollapsed' : 'subgraph';
         t.checkboxState = check(this.state.hidden.has(subgraphKey(i.id)));
         const notes: string[] = [];
         if (sg.title !== i.id) notes.push(i.id);
@@ -152,17 +170,17 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
         const n = m.nodes.get(i.id)!;
         const t = new vscode.TreeItem(n.label);
         t.id = nodeKey(i.id);
-        t.iconPath = new vscode.ThemeIcon(n.pseudo === 'start' ? 'debug-start' : n.pseudo === 'end' ? 'debug-stop' : 'symbol-constant');
+        t.iconPath = new vscode.ThemeIcon(n.pseudo === 'start' ? 'debug-start' : n.pseudo === 'end' ? 'debug-stop' : words.nodeIcon);
         t.contextValue = 'node';
         t.checkboxState = check(this.state.hidden.has(nodeKey(i.id)));
         const viaParent = !this.state.hidden.has(nodeKey(i.id)) && vis.isNodeHidden(i.id);
-        t.description = [n.label !== n.id && !n.pseudo ? n.id : '', viaParent ? (isState ? 'hidden by composite state' : 'hidden by subgraph') : ''].filter(Boolean).join(' · ');
+        t.description = [n.label !== n.id && !n.pseudo ? n.id : '', viaParent ? `hidden by ${words.group}` : ''].filter(Boolean).join(' · ');
         t.tooltip = `${n.id} – line ${n.line + 1}`;
         return t;
       }
       case 'edgeGroup': {
         const hiddenCount = m.edges.filter(e => vis.isEdgeHidden(e)).length;
-        const t = new vscode.TreeItem(isState ? 'Transitions' : 'Edges', COLLAPSIBLE[initialState(i)]);
+        const t = new vscode.TreeItem(words.edges, COLLAPSIBLE[initialState(i)]);
         t.id = 'edgeGroup';
         t.iconPath = new vscode.ThemeIcon('git-merge');
         t.contextValue = 'edgeGroup';
@@ -177,8 +195,46 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
         t.iconPath = new vscode.ThemeIcon('arrow-right');
         t.contextValue = 'edge';
         t.checkboxState = check(this.state.hidden.has(edgeKey(e.key)));
-        const viaNode = !this.state.hidden.has(edgeKey(e.key)) && vis.isEdgeHidden(e);
-        t.description = [e.label, viaNode ? (isState ? 'hidden by state' : 'hidden by node') : ''].filter(Boolean).join(' · ');
+        const own = this.state.hidden.has(edgeKey(e.key));
+        const viaBlock = !own && isSequence(m) ? blockSuppressor(m, this.state.hidden, m.edgeParent[e.index]) : undefined;
+        const viaNode = !own && !viaBlock && vis.isEdgeHidden(e);
+        const blockNote = viaBlock ? (this.state.hidden.has(subgraphKey(viaBlock.id)) ? 'hidden by block' : 'collapsed in diagram') : '';
+        t.description = [e.label, blockNote, viaNode ? `hidden by ${words.node}` : ''].filter(Boolean).join(' · ');
+        return t;
+      }
+      case 'participants': {
+        const t = new vscode.TreeItem('Participants', COLLAPSIBLE[initialState(i)]);
+        t.id = 'participants';
+        t.iconPath = new vscode.ThemeIcon('organization');
+        t.contextValue = 'participants';
+        t.description = `${m.nodes.size}`;
+        return t;
+      }
+      case 'block': {
+        const sm = m as SequenceModel;
+        const b = sm.blocks.get(i.id)!;
+        // Huvudgrenen (gren 0) har samma typ och titel som blocket; visa bara titeln.
+        const main = b.section && i.id.endsWith(':0');
+        const text = main ? b.title || 'main branch' : b.title ? `${b.kind} ${b.title}` : b.kind;
+        const t = new vscode.TreeItem(text, COLLAPSIBLE[initialState(i)]);
+        t.id = `block:${i.id}`;
+        t.tooltip = `${b.kind} – line ${b.line + 1}`;
+        const collapsed = this.state.hidden.has(collapseKey(i.id));
+        const own = this.state.hidden.has(subgraphKey(i.id));
+        const outer = !own && b.parent ? blockSuppressor(sm, this.state.hidden, b.parent) : undefined;
+        // En gren (else, and, option) kan fällas ihop men inte döljas; den följer sitt block.
+        if (b.section) {
+          t.iconPath = new vscode.ThemeIcon('debug-step-over');
+          t.contextValue = collapsed ? 'sectionCollapsed' : 'section';
+          t.description = outer ? (this.state.hidden.has(subgraphKey(outer.id)) ? 'hidden by block' : 'inside collapsed block')
+            : collapsed ? 'collapsed in diagram' : '';
+          return t;
+        }
+        t.iconPath = new vscode.ThemeIcon(BLOCK_ICONS[b.kind] ?? 'symbol-structure');
+        t.contextValue = collapsed ? 'subgraphCollapsed' : 'subgraph';
+        t.checkboxState = check(own);
+        t.description = outer ? (this.state.hidden.has(subgraphKey(outer.id)) ? 'hidden by block' : 'inside collapsed block')
+          : collapsed && !own ? 'collapsed in diagram' : '';
         return t;
       }
     }
@@ -196,7 +252,7 @@ class Preview {
   constructor(
     private readonly ctx: vscode.ExtensionContext,
     private readonly state: DiagramState,
-    private readonly onClicked: (kind: 'node' | 'subgraph', id: string) => void,
+    private readonly onClicked: (kind: 'node' | 'subgraph' | 'block', id: string, toggle: boolean, branch: boolean) => void,
   ) {
     state.onDidChange(() => this.update());
   }
@@ -213,18 +269,18 @@ class Preview {
     this.panel.onDidDispose(() => { this.panel = undefined; });
     this.panel.webview.onDidReceiveMessage(msg => {
       if (msg.type === 'ready') { this.ready = true; this.update(); }
-      if (msg.type === 'clicked') this.onClicked(msg.kind, msg.id);
+      if (msg.type === 'clicked') this.onClicked(msg.kind, msg.id, msg.toggle === true, msg.branch === true);
     });
   }
 
-  focus(kind: 'node' | 'subgraph', id: string) {
+  focus(kind: 'node' | 'subgraph' | 'block', id: string) {
     if (this.ready) void this.panel?.webview.postMessage({ type: 'focus', kind, id });
   }
 
   private update() {
     if (!this.panel || !this.ready || !this.state.doc) return;
     this.panel.title = `Preview: ${vscode.workspace.asRelativePath(this.state.doc.uri)}`;
-    void this.panel.webview.postMessage({ type: 'render', text: this.state.filteredText() });
+    void this.panel.webview.postMessage({ type: 'render', ...this.state.rendered() });
   }
 
   private html(webview: vscode.Webview, media: vscode.Uri, mermaidDist: vscode.Uri): string {
@@ -302,7 +358,20 @@ export function activate(ctx: vscode.ExtensionContext) {
     editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
   };
 
-  const preview = new Preview(ctx, state, (clickedKind, id) => {
+  const preview = new Preview(ctx, state, (clickedKind, clickedId, toggle, branch) => {
+    // Klick på blockets titel gäller huvudgrenen när blocket har fler grenar.
+    const m0 = state.model;
+    const id = branch && m0 && isSequence(m0) && m0.blocks.has(`${clickedId}:0`) ? `${clickedId}:0` : clickedId;
+    if (clickedKind === 'block') {
+      // Klick på blockets etikett eller på anteckningen i ett hopfällt block fäller ihop eller ut.
+      const m = state.model;
+      if (!m || !isSequence(m) || !m.blocks.has(id)) return;
+      if (toggle) state.setCollapsed(id, !state.hidden.has(collapseKey(id)));
+      const item = tree.find('block', id);
+      if (item) void view.reveal(item, { select: true, focus: false });
+      revealLine(m.blocks.get(id)!.line);
+      return;
+    }
     // En hopfälld grupp ritas som en nod med gruppens id.
     const kind = clickedKind === 'node' && !state.model?.nodes.has(id) && state.model?.subgraphs.has(id) ? 'subgraph' : clickedKind;
     const item = tree.find(kind, id);
@@ -361,7 +430,7 @@ export function activate(ctx: vscode.ExtensionContext) {
       for (const [item, checked] of e.items) {
         const visible = checked === vscode.TreeItemCheckboxState.Checked;
         if (item.kind === 'edgeGroup') state.setVisible(m.edges.map(x => edgeKey(x.key)), visible);
-        else if (item.kind !== 'info') state.setVisible([itemKey(item)], visible);
+        else if (item.kind !== 'info' && item.kind !== 'participants') state.setVisible([itemKey(item)], visible);
       }
     }),
 
@@ -372,6 +441,11 @@ export function activate(ctx: vscode.ExtensionContext) {
       if (item.kind === 'node') { revealLine(m.nodes.get(item.id)!.line); preview.focus('node', item.id); }
       if (item.kind === 'subgraph') { revealLine(m.subgraphs.get(item.id)!.line); preview.focus('subgraph', item.id); }
       if (item.kind === 'edge') revealLine(m.edges.find((x: FlowEdge) => x.key === item.key)!.line);
+      if (item.kind === 'block' && isSequence(m)) {
+        const b = m.blocks.get(item.id)!;
+        revealLine(b.line);
+        preview.focus('block', b.section ? b.parent! : item.id);
+      }
     }),
 
     vscode.commands.registerCommand('mermaidTree.openPreview', (uri?: vscode.Uri) => {
@@ -399,17 +473,17 @@ export function activate(ctx: vscode.ExtensionContext) {
     }),
 
     vscode.commands.registerCommand('mermaidTree.hideItem', (item?: Item) => {
-      if (item && item.kind !== 'info' && item.kind !== 'edgeGroup') state.setVisible([itemKey(item)], false);
+      if (item && item.kind !== 'info' && item.kind !== 'edgeGroup' && item.kind !== 'participants') state.setVisible([itemKey(item)], false);
     }),
 
     vscode.commands.registerCommand('mermaidTree.collapseGroup', (item?: Item) => {
       const target = item ?? view.selection[0];
-      if (target?.kind === 'subgraph') { state.setCollapsed(target.id, true); preview.focus('subgraph', target.id); }
+      if (target?.kind === 'subgraph' || target?.kind === 'block') { state.setCollapsed(target.id, true); preview.focus(target.kind, target.id); }
     }),
 
     vscode.commands.registerCommand('mermaidTree.expandGroup', (item?: Item) => {
       const target = item ?? view.selection[0];
-      if (target?.kind === 'subgraph') { state.setCollapsed(target.id, false); preview.focus('subgraph', target.id); }
+      if (target?.kind === 'subgraph' || target?.kind === 'block') { state.setCollapsed(target.id, false); preview.focus(target.kind, target.id); }
     }),
   );
 }

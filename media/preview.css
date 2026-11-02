@@ -76,7 +76,11 @@ body {
 #stage g.node,
 #stage g.rough-node,
 #stage g.cluster,
-#stage g.statediagram-cluster {
+#stage g.statediagram-cluster,
+#stage .labelBox,
+#stage .labelText,
+#stage .loopText,
+#stage .sectionTitle {
   cursor: pointer;
 }
 
