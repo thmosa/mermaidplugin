@@ -1,8 +1,8 @@
 {
   "name": "mermaid-tree",
-  "displayName": "Mermaid Tree (spike)",
-  "description": "Structure tree for Mermaid diagrams: hide nodes, edges and subgraphs, and zoom in the preview.",
-  "version": "0.0.1",
+  "displayName": "Mermaid Tree",
+  "description": "Structure tree and live preview for Mermaid diagrams: hide, show and collapse parts of flowcharts, state, sequence and class diagrams.",
+  "version": "0.1.0",
   "publisher": "local",
   "private": true,
   "license": "MIT",
@@ -206,7 +206,8 @@
     "watch": "tsc -watch -p .",
     "test": "tsc -p . && node --test test/*.test.js",
     "test:unit": "tsc -p . && node --test test/parser.test.js test/state.test.js test/zoom.test.js test/labels.test.js test/language.test.js test/diagnostics.test.js test/tree.test.js test/syntax.test.js test/collapse.test.js test/sequence.test.js test/class.test.js",
-    "test:contract": "tsc -p . && node --test test/mermaid.contract.test.js test/state.contract.test.js test/mermaid.parse.test.js test/collapse.contract.test.js test/sequence.contract.test.js test/class.contract.test.js"
+    "test:contract": "tsc -p . && node --test test/mermaid.contract.test.js test/state.contract.test.js test/mermaid.parse.test.js test/collapse.contract.test.js test/sequence.contract.test.js test/class.contract.test.js",
+    "package": "tsc -p . && vsce package"
   },
   "dependencies": {
     "mermaid": "12.1.0"
@@ -214,7 +215,12 @@
   "devDependencies": {
     "@types/node": "22.20.5",
     "@types/vscode": "1.138.0",
+    "@vscode/vsce": "4.1.0",
     "playwright-core": "1.64.0",
     "typescript": "6.0.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thmosa/mermaidplugin.git"
   }
 }

@@ -22,7 +22,8 @@ const importEsm = new Function('specifier', 'return import(specifier)') as (s: s
 let loading: Promise<MermaidApi> | undefined;
 
 function mermaid(): Promise<MermaidApi> {
-  const file = path.join(__dirname, '..', 'node_modules', 'mermaid', 'dist', 'mermaid.core.mjs');
+  // Det fristående ESM-bygget: mermaid.core.mjs importerar d3 m.fl., som inte följer med i paketet.
+  const file = path.join(__dirname, '..', 'node_modules', 'mermaid', 'dist', 'mermaid.esm.min.mjs');
   loading ??= importEsm(pathToFileURL(file).href).then(m => m.default);
   return loading;
 }

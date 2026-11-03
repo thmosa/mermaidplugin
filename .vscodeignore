@@ -1,0 +1,17 @@
+# Bara det tillägget behöver när det körs. Allt annat utesluts; test/package.test.js kontrollerar.
+**
+!package.json
+!README.md
+!LICENSE
+!language-configuration.json
+!syntaxes/**
+!out/*.js
+!media/*.js
+!media/*.css
+!media/*.svg
+!media/*.png
+
+# Mermaid: webbläsarbygget för förhandsvisningen och det fristående ESM-bygget för syntaxkontrollen.
+!node_modules/mermaid/dist/mermaid.min.js
+!node_modules/mermaid/dist/mermaid.esm.min.mjs
+!node_modules/mermaid/dist/chunks/mermaid.esm.min/*.mjs
