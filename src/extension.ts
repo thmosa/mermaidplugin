@@ -6,6 +6,7 @@ import { caseConflicts } from './diagnostics';
 import { checkSyntax } from './mermaidCheck';
 import { syntaxDiagnostic } from './syntax';
 import { Item, children, parentOf, initialState } from './tree';
+import { idAt, rename, renameKeys, renamedId } from './rename';
 
 const HIDDEN_STATE = 'mermaidTree.hidden';
 
@@ -47,6 +48,12 @@ class DiagramState {
   /** Byter ut vad som är dolt. Hopfällda grupper (c:-nycklar) ligger kvar. */
   replaceHidden(keys: Iterable<string>) {
     this.hidden = new Set([...[...this.hidden].filter(k => k.startsWith('c:')), ...keys]);
+    this.commit();
+  }
+
+  /** Efter ett namnbyte: dolt och hopfällt pekar på det nya id:t. */
+  renameKeys(oldId: string, newId: string) {
+    this.hidden = renameKeys(this.hidden, oldId, newId);
     this.commit();
   }
 
@@ -233,7 +240,8 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
           return t;
         }
         t.iconPath = new vscode.ThemeIcon(BLOCK_ICONS[b.kind] ?? 'symbol-structure');
-        t.contextValue = collapsed ? 'subgraphCollapsed' : 'subgraph';
+        // Eget kontextvärde: block kan fällas ihop och döljas men inte byta namn.
+        t.contextValue = collapsed ? 'blockCollapsed' : 'block';
         t.checkboxState = check(own);
         t.description = outer ? (this.state.hidden.has(subgraphKey(outer.id)) ? 'hidden by block' : 'inside collapsed block')
           : collapsed && !own ? 'collapsed in diagram' : '';
@@ -487,7 +495,55 @@ export function activate(ctx: vscode.ExtensionContext) {
       const target = item ?? view.selection[0];
       if (target?.kind === 'subgraph' || target?.kind === 'block') { state.setCollapsed(target.id, false); preview.focus(target.kind, target.id); }
     }),
+
+    // Byt namn (F2 och Rename Symbol i editorns högerklicksmeny).
+    vscode.languages.registerRenameProvider({ language: 'mermaid' }, {
+      prepareRename(doc, pos) {
+        const hit = idAt(doc.getText(), parseDiagram(doc.getText()), pos.line, pos.character);
+        if (!hit) throw new Error('Place the cursor on the name of a node, state, participant, class or group to rename it.');
+        const range = new vscode.Range(hit.line, hit.start, hit.line, hit.end);
+        return { range, placeholder: doc.getText(range) };
+      },
+      provideRenameEdits(doc, pos, newName) {
+        const text = doc.getText();
+        const m = parseDiagram(text);
+        const hit = idAt(text, m, pos.line, pos.character);
+        return hit ? renameEdit(doc, m, hit.id, newName) : undefined;
+      },
+    }),
+
+    // Byt namn från trädets högerklicksmeny.
+    vscode.commands.registerCommand('mermaidTree.renameItem', async (item?: Item) => {
+      const target = item ?? view.selection[0];
+      const doc = state.doc;
+      const m = doc && parseDiagram(doc.getText());
+      if (!doc || !m || (target?.kind !== 'node' && target?.kind !== 'subgraph')) return;
+      // En namespace visar och byter bara sitt sista segment.
+      const current = /^classDiagram/.test(m.diagramType) && m.subgraphs.has(target.id) ? target.id.slice(target.id.lastIndexOf('.') + 1) : target.id;
+      const newName = await vscode.window.showInputBox({
+        title: `Rename "${current}"`,
+        prompt: 'New name. Labels, messages and comments are not changed.',
+        value: current,
+        validateInput: v => v === current ? undefined : rename(doc.getText(), m, target.id, v).error,
+      });
+      if (newName === undefined || newName === current) return;
+      try {
+        await vscode.workspace.applyEdit(renameEdit(doc, parseDiagram(doc.getText()), target.id, newName));
+      } catch (e) {
+        void vscode.window.showErrorMessage(String((e as Error).message));
+      }
+    }),
   );
+
+  /** Ändringarna för ett namnbyte. Det som är dolt och hopfällt följer med till det nya namnet. */
+  function renameEdit(doc: vscode.TextDocument, m: AnyModel, id: string, newName: string): vscode.WorkspaceEdit {
+    const r = rename(doc.getText(), m, id, newName);
+    if (r.error !== undefined) throw new Error(r.error);
+    const edit = new vscode.WorkspaceEdit();
+    for (const e of r.edits) edit.replace(doc.uri, new vscode.Range(e.line, e.start, e.line, e.end), newName);
+    if (state.doc === doc) state.renameKeys(id, renamedId(m, id, newName));
+    return edit;
+  }
 }
 
 export function deactivate() {}

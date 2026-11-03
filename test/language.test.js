@@ -72,11 +72,16 @@ test('meny: grupper i trädet kan fällas ihop och ut i diagrammet', () => {
     const re = /viewItem =~ \/(.+?)\/(?:\s|$)/.exec(m.when);
     return eq ? eq[1] === viewItem : re ? new RegExp(re[1]).test(viewItem) : false;
   });
-  for (const item of ['subgraph', 'section']) assert.ok(shownFor('mermaidTree.collapseGroup', item), item);
-  for (const item of ['subgraphCollapsed', 'sectionCollapsed']) assert.ok(shownFor('mermaidTree.expandGroup', item), item);
+  for (const item of ['subgraph', 'section', 'block']) assert.ok(shownFor('mermaidTree.collapseGroup', item), item);
+  for (const item of ['subgraphCollapsed', 'sectionCollapsed', 'blockCollapsed']) assert.ok(shownFor('mermaidTree.expandGroup', item), item);
   assert.ok(!shownFor('mermaidTree.collapseGroup', 'subgraphCollapsed'));
   assert.ok(shownFor('mermaidTree.hideItem', 'subgraphCollapsed'), 'hopfälld grupp ska också gå att dölja');
   assert.ok(!shownFor('mermaidTree.hideItem', 'section'), 'en gren går inte att dölja');
+  for (const item of ['block', 'blockCollapsed']) assert.ok(shownFor('mermaidTree.hideItem', item), item);
+  // Byt namn: noder och grupper med riktiga namn, men inte box, block eller grenar.
+  assert.equal(title('mermaidTree.renameItem'), 'Rename…');
+  for (const item of ['node', 'subgraph', 'subgraphCollapsed']) assert.ok(shownFor('mermaidTree.renameItem', item), item);
+  for (const item of ['box', 'block', 'section', 'edge']) assert.ok(!shownFor('mermaidTree.renameItem', item), item);
 });
 
 test('språk: package.json kopplar konfiguration och grammatik till mermaid', () => {

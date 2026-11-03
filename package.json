@@ -114,6 +114,12 @@
         "title": "Expand in Diagram",
         "category": "Mermaid Tree",
         "icon": "$(unfold)"
+      },
+      {
+        "command": "mermaidTree.renameItem",
+        "title": "Rename…",
+        "category": "Mermaid Tree",
+        "icon": "$(edit)"
       }
     ],
     "menus": {
@@ -160,25 +166,30 @@
         },
         {
           "command": "mermaidTree.collapseGroup",
-          "when": "view == mermaidTree.structure && viewItem =~ /^(subgraph|section)$/",
+          "when": "view == mermaidTree.structure && viewItem =~ /^(subgraph|section|block)$/",
           "group": "inline"
         },
         {
           "command": "mermaidTree.collapseGroup",
-          "when": "view == mermaidTree.structure && viewItem =~ /^(subgraph|section)$/"
+          "when": "view == mermaidTree.structure && viewItem =~ /^(subgraph|section|block)$/"
         },
         {
           "command": "mermaidTree.expandGroup",
-          "when": "view == mermaidTree.structure && viewItem =~ /^(subgraphCollapsed|sectionCollapsed)$/",
+          "when": "view == mermaidTree.structure && viewItem =~ /^(subgraphCollapsed|sectionCollapsed|blockCollapsed)$/",
           "group": "inline"
         },
         {
           "command": "mermaidTree.expandGroup",
-          "when": "view == mermaidTree.structure && viewItem =~ /^(subgraphCollapsed|sectionCollapsed)$/"
+          "when": "view == mermaidTree.structure && viewItem =~ /^(subgraphCollapsed|sectionCollapsed|blockCollapsed)$/"
         },
         {
           "command": "mermaidTree.hideItem",
-          "when": "view == mermaidTree.structure && viewItem =~ /^(node|edge|subgraph|subgraphCollapsed|box)$/"
+          "when": "view == mermaidTree.structure && viewItem =~ /^(node|edge|subgraph|subgraphCollapsed|box|block|blockCollapsed)$/"
+        },
+        {
+          "command": "mermaidTree.renameItem",
+          "when": "view == mermaidTree.structure && viewItem =~ /^(node|subgraph|subgraphCollapsed)$/",
+          "group": "7_modification"
         }
       ],
       "commandPalette": [
@@ -197,6 +208,10 @@
         {
           "command": "mermaidTree.hideItem",
           "when": "false"
+        },
+        {
+          "command": "mermaidTree.renameItem",
+          "when": "false"
         }
       ]
     }
@@ -205,7 +220,7 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "tsc -p . && node --test test/*.test.js",
-    "test:unit": "tsc -p . && node --test test/parser.test.js test/state.test.js test/zoom.test.js test/labels.test.js test/language.test.js test/diagnostics.test.js test/tree.test.js test/syntax.test.js test/collapse.test.js test/sequence.test.js test/class.test.js",
+    "test:unit": "tsc -p . && node --test test/parser.test.js test/state.test.js test/zoom.test.js test/labels.test.js test/language.test.js test/diagnostics.test.js test/tree.test.js test/syntax.test.js test/collapse.test.js test/sequence.test.js test/class.test.js test/rename.test.js test/rename.property.test.js",
     "test:contract": "tsc -p . && node --test test/mermaid.contract.test.js test/state.contract.test.js test/mermaid.parse.test.js test/collapse.contract.test.js test/sequence.contract.test.js test/class.contract.test.js",
     "package": "tsc -p . && vsce package"
   },
