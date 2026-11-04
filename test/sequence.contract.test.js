@@ -5,7 +5,8 @@ const assert = require('node:assert/strict');
 const { openMermaid } = require('./support/mermaid-browser');
 
 let mm;
-test.before(async () => { mm = await openMermaid(); });
+// Kontrakten nedan renderar över tusen varianter; fyra flikar delar på dem.
+test.before(async () => { mm = await openMermaid({ pages: 4 }); });
 test.after(async () => { await mm?.close(); });
 
 const actors = r => [...r.seq.actors].sort();
@@ -147,9 +148,19 @@ function expected(model, hidden) {
   };
 }
 
-async function assertMatches(model, hidden, label) {
-  const out = filterSequenceDetailed(model, hidden);
-  const r = await mm.render(out.text);
+/**
+ * Kontrollerar varje fall [hidden, label]. Varje unik text renderas en gång, parallellt i
+ * flikarna; sedan jämförs fallen i tur och ordning, så att första felet är det som rapporteras.
+ */
+async function assertAllMatch(model, cases) {
+  const outs = cases.map(([hidden]) => filterSequenceDetailed(model, hidden));
+  const texts = [...new Set(outs.map(o => o.text))];
+  const results = await Promise.all(texts.map(t => mm.render(t)));
+  const byText = new Map(texts.map((t, i) => [t, results[i]]));
+  cases.forEach(([hidden, label], i) => assertMatches(model, hidden, label, outs[i], byText.get(outs[i].text)));
+}
+
+function assertMatches(model, hidden, label, out, r) {
   assert.equal(r.ok, true, `${label}: ${r.error}`);
   const want = expected(model, hidden);
   assert.deepEqual(actors(r), want.actors, `${label}: deltagare`);
@@ -165,71 +176,56 @@ async function assertMatches(model, hidden, label) {
 }
 
 for (const sample of samples) {
+  const model = parseSequence(sample.text);
+  const nodeAndEdgeKeys = [...[...model.nodes.keys()].map(nodeKey), ...model.edges.map(e => edgeKey(e.key))];
+
   test(`kontrakt ${sample.name}: Mermaid ritar det parsern ser`, async () => {
-    await assertMatches(parseSequence(sample.text), new Set(), sample.name);
+    await assertAllMatch(model, [[new Set(), sample.name]]);
   });
 
   test(`kontrakt ${sample.name}: varje enskilt dolt element`, async () => {
-    const model = parseSequence(sample.text);
-    const keys = [
-      ...[...model.nodes.keys()].map(nodeKey),
-      ...model.edges.map(e => edgeKey(e.key)),
-      ...[...model.subgraphs.keys()].map(subgraphKey),
-    ];
-    for (const key of keys) await assertMatches(model, new Set([key]), `${sample.name} dold ${key}`);
+    const keys = [...nodeAndEdgeKeys, ...[...model.subgraphs.keys()].map(subgraphKey)];
+    await assertAllMatch(model, keys.map(key => [new Set([key]), `${sample.name} dold ${key}`]));
   });
 
   test(`kontrakt ${sample.name}: fokusläge för varje deltagare`, async () => {
-    const model = parseSequence(sample.text);
-    for (const id of model.nodes.keys()) {
+    await assertAllMatch(model, [...model.nodes.keys()].map(id => {
       const keep = neighborhood(model, id, 1);
-      const hidden = new Set([...model.nodes.keys()].filter(n => !keep.has(n)).map(nodeKey));
-      await assertMatches(model, hidden, `${sample.name} fokus ${id}`);
-    }
+      return [new Set([...model.nodes.keys()].filter(n => !keep.has(n)).map(nodeKey)), `${sample.name} fokus ${id}`];
+    }));
   });
 
   test(`kontrakt ${sample.name}: varje block hopfällt och dolt för sig`, async () => {
-    const model = parseSequence(sample.text);
-    for (const b of model.blocks.values()) {
-      if (b.section) continue;
-      await assertMatches(model, new Set([collapseKey(b.id)]), `${sample.name} hopfällt ${b.id}`);
-      await assertMatches(model, new Set([subgraphKey(b.id)]), `${sample.name} dolt ${b.id}`);
-    }
+    await assertAllMatch(model, [...model.blocks.values()].filter(b => !b.section).flatMap(b => [
+      [new Set([collapseKey(b.id)]), `${sample.name} hopfällt ${b.id}`],
+      [new Set([subgraphKey(b.id)]), `${sample.name} dolt ${b.id}`],
+    ]));
   });
 
   test(`kontrakt ${sample.name}: varje gren hopfälld för sig och med varje dold deltagare eller meddelande`, async () => {
-    const model = parseSequence(sample.text);
-    for (const b of model.blocks.values()) {
-      if (!b.section) continue;
-      await assertMatches(model, new Set([collapseKey(b.id)]), `${sample.name} hopfälld gren ${b.id}`);
-      for (const key of [...[...model.nodes.keys()].map(nodeKey), ...model.edges.map(e => edgeKey(e.key))]) {
-        await assertMatches(model, new Set([collapseKey(b.id), key]), `${sample.name} hopfälld gren ${b.id}, dold ${key}`);
-      }
-    }
+    await assertAllMatch(model, [...model.blocks.values()].filter(b => b.section).flatMap(b => [
+      [new Set([collapseKey(b.id)]), `${sample.name} hopfälld gren ${b.id}`],
+      ...nodeAndEdgeKeys.map(key => [new Set([collapseKey(b.id), key]), `${sample.name} hopfälld gren ${b.id}, dold ${key}`]),
+    ]));
   });
 
   test(`kontrakt ${sample.name}: alla block hopfällda`, async () => {
-    const model = parseSequence(sample.text);
-    await assertMatches(model, new Set([...model.blocks.keys()].map(collapseKey)), `${sample.name} alla hopfällda`);
+    await assertAllMatch(model, [[new Set([...model.blocks.keys()].map(collapseKey)), `${sample.name} alla hopfällda`]]);
   });
 
   test(`kontrakt ${sample.name}: hopfällt block tillsammans med varje dold deltagare eller meddelande`, async () => {
-    const model = parseSequence(sample.text);
-    for (const b of model.blocks.values()) {
-      if (b.section) continue;
-      for (const key of [...[...model.nodes.keys()].map(nodeKey), ...model.edges.map(e => edgeKey(e.key))]) {
-        await assertMatches(model, new Set([collapseKey(b.id), key]), `${sample.name} hopfällt ${b.id}, dold ${key}`);
-      }
-    }
+    await assertAllMatch(model, [...model.blocks.values()].filter(b => !b.section).flatMap(b =>
+      nodeAndEdgeKeys.map(key => [new Set([collapseKey(b.id), key]), `${sample.name} hopfällt ${b.id}, dold ${key}`])));
   });
 
   test(`kontrakt ${sample.name}: varje par av dolda meddelanden`, async () => {
-    const model = parseSequence(sample.text);
+    const cases = [];
     for (let a = 0; a < model.edges.length; a++) {
       for (let b = a + 1; b < model.edges.length; b++) {
-        await assertMatches(model, new Set([edgeKey(model.edges[a].key), edgeKey(model.edges[b].key)]), `${sample.name} dolda ${a},${b}`);
+        cases.push([new Set([edgeKey(model.edges[a].key), edgeKey(model.edges[b].key)]), `${sample.name} dolda ${a},${b}`]);
       }
     }
+    await assertAllMatch(model, cases);
   });
 }
 

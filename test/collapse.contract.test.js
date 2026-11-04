@@ -53,6 +53,11 @@ async function assertMatches(model, hidden, label) {
   assert.deepEqual(clusterIds(r), want.clusters, `${label}: grupper`);
 }
 
+// Stora exempel (som largeclass.mmd) körs bara i grundtesterna. Kombinationerna blir hundratals
+// renderingar på nästan en sekund var, och de mindre exemplen täcker samma regler.
+const LARGE = 40;
+const combos = model => model.nodes.size > LARGE ? { skip: `stort exempel (${model.nodes.size} noder), bara grundtesterna` } : {};
+
 for (const { name, model } of samples) {
   test(`kontrakt hopfällning ${name}: varje grupp hopfälld för sig`, async () => {
     for (const sg of model.subgraphs.keys()) await assertMatches(model, new Set([collapseKey(sg)]), `${name} hopfälld ${sg}`);
@@ -62,7 +67,7 @@ for (const { name, model } of samples) {
     await assertMatches(model, new Set([...model.subgraphs.keys()].map(collapseKey)), `${name} alla hopfällda`);
   });
 
-  test(`kontrakt hopfällning ${name}: hopfälld grupp och en dold nod`, async () => {
+  test(`kontrakt hopfällning ${name}: hopfälld grupp och en dold nod`, combos(model), async () => {
     for (const sg of model.subgraphs.keys()) {
       for (const id of model.nodes.keys()) {
         await assertMatches(model, new Set([collapseKey(sg), nodeKey(id)]), `${name} hopfälld ${sg}, dold ${id}`);

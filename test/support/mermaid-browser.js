@@ -20,12 +20,32 @@ async function launch() {
   throw new Error(`Hittade ingen webbläsare för kontraktstesterna (installera Chrome eller Edge).\n${errors.join('\n')}`);
 }
 
-/** Startar webbläsaren och returnerar { render, close }. */
-async function openMermaid() {
+/**
+ * Startar webbläsaren och returnerar { render, close }. Med `pages` > 1 renderas samtidiga
+ * anrop i flera flikar, var och en i en egen process, så att flera kärnor används.
+ */
+async function openMermaid({ pages: count = 1 } = {}) {
   const browser = await launch();
-  const page = await browser.newPage();
-  await page.setContent('<!DOCTYPE html><html><body></body></html>');
-  await page.addScriptTag({ path: MERMAID_JS });
+  const pages = await Promise.all(Array.from({ length: count }, async () => {
+    // En egen kontext per flik, annars delar flikarna process och turas om.
+    const page = await (await browser.newContext()).newPage();
+    await page.setContent('<!DOCTYPE html><html><body></body></html>');
+    await page.addScriptTag({ path: MERMAID_JS });
+    await page.addScriptTag({ path: LABELS_JS });
+    return page;
+  }));
+  const free = [...pages];
+  const waiting = [];
+  /** Kör fn med en ledig flik; väntar om alla är upptagna. */
+  async function withPage(fn) {
+    const page = free.pop() ?? await new Promise(resolve => waiting.push(resolve));
+    try {
+      return await fn(page);
+    } finally {
+      const next = waiting.shift();
+      if (next) next(page); else free.push(page);
+    }
+  }
   let seq = 0;
 
   /**
@@ -34,8 +54,13 @@ async function openMermaid() {
    */
   async function render(text, config = {}) {
     const renderId = `mm${++seq}`;
-    return page.evaluate(async ({ text, config, renderId }) => {
-      mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', ...config });
+    return withPage(page => page.evaluate(async ({ text, config, renderId }) => {
+      // initialize tar tid; gör det bara när inställningarna ändras.
+      const key = JSON.stringify(config);
+      if (window.__mmConfig !== key) {
+        mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', ...config });
+        window.__mmConfig = key;
+      }
       try {
         const { svg } = await mermaid.render(renderId, text);
         // HTML-parsern, eftersom länkade klasser har xlink:href utan deklarerat prefix.
@@ -93,10 +118,8 @@ async function openMermaid() {
         document.getElementById('d' + renderId)?.remove();
         return { ok: false, error: String(e && e.message || e), renderId, nodes: [], notes: [], clusters: [], edges: 0, seq: null };
       }
-    }, { text, config, renderId });
+    }, { text, config, renderId }));
   }
-
-  await page.addScriptTag({ path: LABELS_JS });
 
   /**
    * Ritar text i DOM:en och räknar par av kantetiketter som överlappar,
@@ -104,8 +127,9 @@ async function openMermaid() {
    */
   async function labelOverlaps(text, config = {}) {
     const renderId = `mm${++seq}`;
-    return page.evaluate(async ({ text, config, renderId }) => {
+    return withPage(page => page.evaluate(async ({ text, config, renderId }) => {
       mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', ...config });
+      window.__mmConfig = JSON.stringify(config);
       const count = svg => {
         const b = [...svg.querySelectorAll('g.edgeLabel')]
           .filter(g => g.textContent.trim()).map(g => g.getBoundingClientRect()).filter(r => r.width > 0);
@@ -128,7 +152,7 @@ async function openMermaid() {
       } catch (e) {
         return { ok: false, error: String(e && e.message || e), labels: 0, before: 0, after: 0 };
       }
-    }, { text, config, renderId });
+    }, { text, config, renderId }));
   }
 
   return { render, labelOverlaps, close: () => browser.close() };

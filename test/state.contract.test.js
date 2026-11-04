@@ -97,12 +97,18 @@ async function assertMatches(model, hidden, label) {
   assert.deepEqual(clusterIds(r), want.clusters, `${label}: sammansatta tillstånd`);
 }
 
+// Stora exempel (som largeclass.mmd) körs bara i grundtesterna. Kombinationerna blir hundratals
+// renderingar på nästan en sekund var, och de mindre exemplen täcker samma regler.
+const LARGE = 40;
+const combos = model => model.nodes.size > LARGE ? { skip: `stort exempel (${model.nodes.size} noder), bara grundtesterna` } : {};
+
 for (const sample of samples) {
+  const size = combos(parseState(sample.text));
   test(`kontrakt ${sample.name}: Mermaid ritar det parsern ser`, async () => {
     await assertMatches(parseState(sample.text), new Set(), sample.name);
   });
 
-  test(`kontrakt ${sample.name}: varje enskilt dolt element`, async () => {
+  test(`kontrakt ${sample.name}: varje enskilt dolt element`, size, async () => {
     const model = parseState(sample.text);
     const keys = [
       ...[...model.nodes.keys()].map(nodeKey),
@@ -123,7 +129,7 @@ for (const sample of samples) {
     }
   });
 
-  test(`kontrakt ${sample.name}: fokusläge för varje tillstånd`, async () => {
+  test(`kontrakt ${sample.name}: fokusläge för varje tillstånd`, size, async () => {
     const model = parseState(sample.text);
     for (const id of model.nodes.keys()) {
       const keep = neighborhood(model, id, 1);
