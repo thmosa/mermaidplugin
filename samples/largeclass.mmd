@@ -1,0 +1,168 @@
+stateDiagram-v2
+    direction TB
+
+    [*] --> EventBus: system boot and load config
+
+    EventBus --> S1: publish order.created
+    EventBus --> S2: publish on user.registered event with email verification pending and marketing consent flag
+    EventBus --> S3: evt
+    EventBus --> S4: dispatch payment.authorized to financial subscribers
+    EventBus --> S5: publish inventory.reserved after stock lock and ERP check including backorder evaluation
+    EventBus --> S6: route
+    EventBus --> S7: forward analytics.track event
+    EventBus --> S8: publish on shipping.label.created with carrier, tracking and customs data for international shipments
+    EventBus --> S9: notify
+    EventBus --> S10: publish audit.log entry
+
+    S1 --> W1: trigger worker 1
+    S2 --> W2: trigger worker 2 asynchronously with 200ms debounce
+    S3 --> W3: invoke
+    S4 --> W4: start worker for payment with idempotency key and retry policy
+    S5 --> W5: dispatch worker 5 to handle inventory sync and WMS notification
+    S6 --> W6: run
+    S7 --> W7: launch analytics worker
+    S8 --> W8: trigger worker 8 for shipping aggregation pipeline
+    S9 --> W9: handle notification worker execution
+    S10 --> W10: execute audit worker for compliance logging
+
+    %% ========== WORKER 1 ==========
+    state W1 {
+        direction LR
+        [*] --> W1_Wait: init
+        W1_Wait --> W1_F1: on order.new
+        W1_F1 --> W1_Wait: processed and ack
+        W1_Wait --> W1_F2: on order.cancel event with reason code
+        W1_F2 --> W1_Wait: cancelled
+        W1_Wait --> W1_F3: validate
+        W1_F3 --> W1_Wait: validation done including address check and fraud screening for high risk orders
+        W1_Wait --> W1_F4: on retry
+        W1_F4 --> W1_Wait: ok
+    }
+
+    %% ========== WORKER 2 - 1 flöde är förlängt med 2 steg ==========
+    state W2 {
+        direction LR
+        [*] --> W2_Wait: init worker 2
+        W2_Wait --> W2_F1: new user
+        W2_F1 --> W2_Wait: user enriched and stored
+        W2_Wait --> W2_F2: on user.email.verified event triggered by auth service
+        W2_F2 --> W2_Wait: verified
+        W2_Wait --> W2_F3: start extended onboarding flow with profile enrichment
+        W2_F3 --> W2_F3_S1: enrich geo and device
+        W2_F3_S1 --> W2_F3_S2: persist to DB with welcome email queued
+        W2_F3_S2 --> W2_Wait: completed extended onboarding and emitted user.onboarded
+        W2_Wait --> W2_F4: delete
+        W2_F4 --> W2_Wait: removed
+    }
+
+    %% ========== WORKER 3 ==========
+    state W3 {
+        [*] --> W3_Wait: init
+        W3_Wait --> W3_F1: send email
+        W3_F1 --> W3_Wait: email sent via SendGrid with template rendering and tracking pixel injection
+        W3_Wait --> W3_F2: bounce
+        W3_F2 --> W3_Wait: bounced
+        W3_Wait --> W3_F3: on complaint
+        W3_F3 --> W3_Wait: suppressed
+        W3_Wait --> W3_F4: retry queue
+        W3_F4 --> W3_Wait: retried
+        W3_Wait --> W3_F5: open
+        W3_F5 --> W3_Wait: logged
+    }
+
+    %% ========== WORKER 4 ==========
+    state W4 {
+        [*] --> W4_Wait: init payment worker
+        W4_Wait --> W4_F1: authorize
+        W4_F1 --> W4_Wait: authorized
+        W4_Wait --> W4_F2: capture payment after fulfillment confirmation from WMS
+        W4_F2 --> W4_Wait: captured and ledger updated
+        W4_Wait --> W4_F3: refund
+        W4_F3 --> W4_Wait: refunded
+        W4_Wait --> W4_F4: fail
+        W4_F4 --> W4_Wait: failed
+    }
+
+    %% ========== WORKER 5 - förlängt ==========
+    state W5 {
+        [*] --> W5_Wait: init
+        W5_Wait --> W5_F1: reserve
+        W5_F1 --> W5_Wait: reserved
+        W5_Wait --> W5_F2: release on order timeout after 15 min
+        W5_F2 --> W5_Wait: released
+        W5_Wait --> W5_F3: start extended reservation validation chain
+        W5_F3 --> W5_F3_S1: check WMS and ERP stock levels across warehouses
+        W5_F3_S1 --> W5_F3_S2: lock
+        W5_F3_S2 --> W5_Wait: locked in WMS and notified picker service with backorder creation if needed
+        W5_Wait --> W5_F4: sync
+        W5_F4 --> W5_Wait: synced
+    }
+
+    %% ========== WORKER 6 ==========
+    state W6 {
+        [*] --> W6_Wait: init
+        W6_Wait --> W6_F1: track pageview
+        W6_F1 --> W6_Wait: tracked
+        W6_Wait --> W6_F2: track purchase event with revenue attribution and funnel mapping
+        W6_F2 --> W6_Wait: tracked purchase and updated LTV
+        W6_Wait --> W6_F3: flush
+        W6_F3 --> W6_Wait: flushed to ClickHouse
+        W6_Wait --> W6_F4: error
+        W6_F4 --> W6_Wait: logged
+    }
+
+    %% ========== WORKER 7 ==========
+    state W7 {
+        [*] --> W7_Wait: init cache worker
+        W7_Wait --> W7_F1: invalidate
+        W7_F1 --> W7_Wait: invalidated across CDN edges
+        W7_Wait --> W7_F2: warm
+        W7_F2 --> W7_Wait: warmed
+        W7_Wait --> W7_F3: on cache.miss with fallback to DB
+        W7_F3 --> W7_Wait: miss handled
+        W7_Wait --> W7_F4: purge all for tenant
+        W7_F4 --> W7_Wait: purged and notified clients via websocket to refetch
+    }
+
+    %% ========== WORKER 8 - förlängt ==========
+    state W8 {
+        [*] --> W8_Wait: init
+        W8_Wait --> W8_F1: create label
+        W8_F1 --> W8_Wait: label created
+        W8_Wait --> W8_F2: cancel shipment
+        W8_F2 --> W8_Wait: cancelled and carrier notified
+        W8_Wait --> W8_F3: start extended aggregation and carrier optimization
+        W8_F3 --> W8_F3_S1: aggregate shipments and calculate dimensional weight for optimal packaging
+        W8_F3_S1 --> W8_F3_S2: emit
+        W8_F3_S2 --> W8_Wait: emitted shipping.aggregated with tracking URL and sent to customer
+        W8_Wait --> W8_F4: return
+        W8_F4 --> W8_Wait: return label created and attached to original order for reverse logistics
+    }
+
+    %% ========== WORKER 9 ==========
+    state W9 {
+        [*] --> W9_Wait: init
+        W9_Wait --> W9_F1: push
+        W9_F1 --> W9_Wait: push sent via FCM and APNS with deep link
+        W9_Wait --> W9_F2: sms fallback if push not delivered within 2 minutes
+        W9_F2 --> W9_Wait: sms sent
+        W9_Wait --> W9_F3: in-app
+        W9_F3 --> W9_Wait: in-app delivered
+        W9_Wait --> W9_F4: fail
+        W9_F4 --> W9_Wait: marked as failed and queued for retry with exponential backoff
+    }
+
+    %% ========== WORKER 10 ==========
+    state W10 {
+        [*] --> W10_Wait: init audit worker
+        W10_Wait --> W10_F1: log access
+        W10_F1 --> W10_Wait: logged
+        W10_Wait --> W10_F2: log mutation with before/after snapshot for GDPR compliance
+        W10_F2 --> W10_Wait: audit trail written to immutable store
+        W10_Wait --> W10_F3: export
+        W10_F3 --> W10_Wait: exported
+        W10_Wait --> W10_F4: redact
+        W10_F4 --> W10_Wait: redacted
+        W10_Wait --> W10_F5: archive
+        W10_F5 --> W10_Wait: archived to cold storage
+    }

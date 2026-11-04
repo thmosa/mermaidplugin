@@ -15,8 +15,43 @@ export type Item =
 
 const isSequence = (model: DiagramModel): model is SequenceModel => 'blocks' in model;
 
-/** Barnen till `parent`, eller översta nivån. */
-export function children(model: DiagramModel, parent?: Item): Item[] {
+/**
+ * Barnen till `parent`, eller översta nivån. Med `query` visas bara det som träffar sökningen och
+ * det som leder dit; under en grupp som själv träffar visas allt.
+ */
+export function children(model: DiagramModel, parent?: Item, query = ''): Item[] {
+  const q = query.trim().toLowerCase();
+  const all = allChildren(model, parent);
+  if (!q || !model.supported) return all;
+  for (let p = parent; p; p = parentOf(model, p)) if (matches(model, p, q)) return all;
+  const below = (i: Item): boolean => allChildren(model, i).some(c => matches(model, c, q) || below(c));
+  return all.filter(i => matches(model, i, q) || below(i));
+}
+
+/** Hur många rader som själv träffar sökningen. */
+export function countMatches(model: DiagramModel, query: string): number {
+  const q = query.trim().toLowerCase();
+  if (!q || !model.supported) return 0;
+  const count = (parent?: Item): number => allChildren(model, parent).reduce((n, i) => n + (matches(model, i, q) ? 1 : 0) + count(i), 0);
+  return count();
+}
+
+/** Texten en rad söks på: id och namn, kanters noder och etikett, blocks typ och titel. */
+function matches(model: DiagramModel, item: Item, q: string): boolean {
+  const name = (id: string) => [id, model.nodes.get(id)?.label ?? model.subgraphs.get(id)?.title ?? ''];
+  let text: string[] = [];
+  if (item.kind === 'node' || item.kind === 'subgraph') text = name(item.id);
+  else if (item.kind === 'edge') {
+    const e = model.edges.find(x => x.key === item.key);
+    if (e) text = [...name(e.from), ...name(e.to), e.label ?? ''];
+  } else if (item.kind === 'block' && isSequence(model)) {
+    const b = model.blocks.get(item.id);
+    if (b) text = [b.section && item.id.endsWith(':0') ? '' : b.kind, b.title];
+  }
+  return text.some(t => t.toLowerCase().includes(q));
+}
+
+function allChildren(model: DiagramModel, parent?: Item): Item[] {
   if (!model.supported) {
     return parent ? [] : [{ kind: 'info', text: `Diagram type "${model.diagramType}" is not supported yet (only flowchart, state, sequence and class diagram)` }];
   }
@@ -77,7 +112,8 @@ export function parentOf(model: DiagramModel, item: Item): Item | undefined {
   return sg ? { kind: 'subgraph', id: sg } : undefined;
 }
 
-/** Grupper börjar hopfällda så att stora diagram går att överblicka. */
-export function initialState(item: Item): 'collapsed' | 'expanded' | 'none' {
-  return item.kind === 'subgraph' || item.kind === 'edgeGroup' || item.kind === 'participants' || item.kind === 'block' ? 'collapsed' : 'none';
+/** Grupper börjar hopfällda så att stora diagram går att överblicka, men utfällda under sökning. */
+export function initialState(item: Item, searching = false): 'collapsed' | 'expanded' | 'none' {
+  const group = item.kind === 'subgraph' || item.kind === 'edgeGroup' || item.kind === 'participants' || item.kind === 'block';
+  return !group ? 'none' : searching ? 'expanded' : 'collapsed';
 }

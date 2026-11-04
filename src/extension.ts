@@ -5,7 +5,7 @@ import { SequenceModel, SequenceRender, blockSuppressor } from './sequenceParser
 import { caseConflicts } from './diagnostics';
 import { checkSyntax } from './mermaidCheck';
 import { syntaxDiagnostic } from './syntax';
-import { Item, children, parentOf, initialState } from './tree';
+import { Item, children, parentOf, initialState, countMatches } from './tree';
 import { idAt, rename, renameKeys, renamedId } from './rename';
 
 const HIDDEN_STATE = 'mermaidTree.hidden';
@@ -107,9 +107,17 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
   readonly onDidChangeTreeData = this.changed.event;
   /** Samma objekt måste återanvändas för att reveal() ska hitta rätt rad i trädet. */
   private items = new Map<string, Item>();
+  /** Sökningen som trädet filtreras på; tom när man inte söker. */
+  query = '';
 
   constructor(private readonly state: DiagramState) {
     state.onDidChange(() => { this.items.clear(); this.changed.fire(undefined); });
+  }
+
+  setQuery(query: string) {
+    this.query = query.trim();
+    this.items.clear();
+    this.changed.fire(undefined);
   }
 
   item(i: Item): Item {
@@ -131,7 +139,7 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
 
   getChildren(parent?: Item): Item[] {
     const m = this.state.model;
-    return m ? children(m, parent).map(i => this.item(i)) : [];
+    return m ? children(m, parent, this.query).map(i => this.item(i)) : [];
   }
 
   getParent(i: Item): Item | undefined {
@@ -141,6 +149,19 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
   }
 
   getTreeItem(i: Item): vscode.TreeItem {
+    const t = this.treeItem(i);
+    if (!this.query) return t;
+    // Under sökning: grupperna fälls ut (nytt id, så att VS Code inte minns det hopfällda läget)
+    // och träffen markeras i namnet.
+    if (t.id) t.id += `?search=${this.query}`;
+    if (t.collapsibleState !== vscode.TreeItemCollapsibleState.None) t.collapsibleState = COLLAPSIBLE[initialState(i, true)];
+    const label = typeof t.label === 'string' ? t.label : undefined;
+    const at = label?.toLowerCase().indexOf(this.query.toLowerCase()) ?? -1;
+    if (label && at >= 0) t.label = { label, highlights: [[at, at + this.query.length]] };
+    return t;
+  }
+
+  private treeItem(i: Item): vscode.TreeItem {
     const m = this.state.model!;
     const vis = visibility(m, this.state.hidden);
     const check = (hidden: boolean) => hidden ? vscode.TreeItemCheckboxState.Unchecked : vscode.TreeItemCheckboxState.Checked;
@@ -280,7 +301,26 @@ class Preview {
     this.panel.webview.onDidReceiveMessage(msg => {
       if (msg.type === 'ready') { this.ready = true; this.update(); }
       if (msg.type === 'clicked') this.onClicked(msg.kind, msg.id, msg.toggle === true, msg.branch === true);
+      if (msg.type === 'export') void this.save(msg.format, msg.data);
+      if (msg.type === 'exportFailed') void vscode.window.showErrorMessage(`Could not export the diagram: ${msg.message}`);
     });
+  }
+
+  /** Sparar exporten bredvid diagramfilen, med samma namn som förslag. */
+  private async save(format: 'svg' | 'png', data: string) {
+    const doc = this.state.doc;
+    if (!doc) return;
+    const name = doc.uri.path.replace(/.[^./]+$/, '') + '.' + format;
+    const target = await vscode.window.showSaveDialog({
+      title: `Export Diagram as ${format.toUpperCase()}`,
+      // En osparad fil har ingen mapp att föreslå.
+      defaultUri: doc.uri.scheme === 'file' ? doc.uri.with({ path: name }) : undefined,
+      filters: format === 'svg' ? { 'SVG image': ['svg'] } : { 'PNG image': ['png'] },
+    });
+    if (!target) return;
+    const bytes = format === 'svg' ? Buffer.from(data, 'utf8') : Buffer.from(data.slice(data.indexOf(',') + 1), 'base64');
+    await vscode.workspace.fs.writeFile(target, bytes);
+    void vscode.window.setStatusBarMessage(`Saved ${vscode.workspace.asRelativePath(target)}`, 4000);
   }
 
   focus(kind: 'node' | 'subgraph' | 'block', id: string) {
@@ -318,6 +358,7 @@ ${TOOLBAR_HTML}
 <script nonce="${nonce}" src="${uri(mermaidDist, 'mermaid.min.js')}"></script>
 <script nonce="${nonce}" src="${uri(media, 'zoom.js')}"></script>
 <script nonce="${nonce}" src="${uri(media, 'labels.js')}"></script>
+<script nonce="${nonce}" src="${uri(media, 'export.js')}"></script>
 <script nonce="${nonce}" src="${uri(media, 'preview.js')}"></script>
 </body>
 </html>`;
@@ -348,6 +389,9 @@ const TOOLBAR_HTML = `<div id="toolbar">
     <option>classic</option>
     <option>handDrawn</option>
   </select>
+  <span class="sep"></span>
+  <button data-action="svg" title="Save the whole diagram as SVG">SVG</button>
+  <button data-action="png" title="Save the whole diagram as PNG (2×)">PNG</button>
   <span id="zoom-level"></span>
 </div>`;
 
@@ -416,6 +460,19 @@ export function activate(ctx: vscode.ExtensionContext) {
   // Diagramtypen visas bredvid panelens namn i stället för som en egen rotnod.
   state.onDidChange(() => { view.description = state.model?.diagramType || undefined; });
 
+  // Sökning i trädet: filtrerar medan man skriver. Filtret ligger kvar när rutan stängs (även när man
+  // klickar i trädet) och tas bort med Clear Search eller en tom sökning.
+  const showSearch = () => {
+    const m = state.model;
+    const q = tree.query;
+    void vscode.commands.executeCommand('setContext', 'mermaidTree.searching', q !== '');
+    if (!q || !m) { view.message = undefined; return; }
+    const n = countMatches(m, q);
+    view.message = n ? `${n} ${n === 1 ? 'match' : 'matches'} for "${q}"` : `No matches for "${q}"`;
+  };
+  const search = (query: string) => { tree.setQuery(query); showSearch(); };
+  state.onDidChange(showSearch);
+
   const track = (editor: vscode.TextEditor | undefined) => {
     if (editor && isMermaid(editor.document)) state.setDocument(editor.document);
   };
@@ -472,6 +529,19 @@ export function activate(ctx: vscode.ExtensionContext) {
     }),
 
     vscode.commands.registerCommand('mermaidTree.showAll', () => state.replaceHidden([])),
+
+    vscode.commands.registerCommand('mermaidTree.search', () => {
+      const box = vscode.window.createInputBox();
+      box.title = 'Search Tree';
+      box.placeholder = 'Name, id, label, message or block title';
+      box.value = tree.query;
+      box.onDidChangeValue(search);
+      box.onDidAccept(() => box.hide());
+      box.onDidHide(() => box.dispose());
+      box.show();
+    }),
+
+    vscode.commands.registerCommand('mermaidTree.clearSearch', () => search('')),
 
     vscode.commands.registerCommand('mermaidTree.focusNeighbors', (item?: Item) => {
       const m = state.model;

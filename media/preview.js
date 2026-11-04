@@ -38,6 +38,8 @@
   let renderSeq = 0;
   let animation = 0;
   let needsFit = false;
+  // Diagram som kom medan panelen var dold; ritas när den får en storlek igen.
+  let pending = null;
 
   const size = () => ({ w: stage.clientWidth, h: stage.clientHeight });
 
@@ -277,6 +279,11 @@
 
   async function render(text) {
     lastText = text;
+    // En dold panel (bakom en annan flik) har ingen storlek, och då mäter Mermaid all text
+    // till 0 så att etiketterna hamnar utanför sina rutor. Vänta tills panelen syns.
+    const { w, h } = size();
+    if (w <= 0 || h <= 0) { pending = text; return; }
+    pending = null;
     const seq = ++renderSeq;
     const id = `mmd${seq}`;
     mermaid.initialize(mermaidConfig());
@@ -287,8 +294,16 @@
       stage.innerHTML = code;
       svg = stage.querySelector('svg');
       Labels.spread(svg, Labels.axisFor(text));
+      const grown = Labels.fitClusters(svg);
       const vb = (svg.getAttribute('viewBox') || '0 0 100 100').split(/[\s,]+/).map(Number);
       base = { x: vb[0], y: vb[1], w: vb[2] || 1, h: vb[3] || 1 };
+      // En grupp längst ut kan ha vuxit utanför Mermaids ram.
+      if (grown) {
+        const bb = svg.getBBox();
+        const x = Math.min(base.x, bb.x);
+        const y = Math.min(base.y, bb.y);
+        base = { x, y, w: Math.max(base.x + base.w, bb.x + bb.width) - x, h: Math.max(base.y + base.h, bb.y + bb.height) - y };
+      }
       svg.removeAttribute('style');
       svg.setAttribute('width', '100%');
       svg.setAttribute('height', '100%');
@@ -301,6 +316,21 @@
       if (seq !== renderSeq) return;
       errorBox.textContent = String(err && err.message || err);
       errorBox.hidden = false;
+    }
+  }
+
+  // ------------------------------------------------------------ export
+
+  /** Hela diagrammet som SVG-fil eller PNG (dubbel storlek), med förhandsvisningens bakgrund. */
+  async function exportDiagram(format) {
+    if (!svg || !base) return;
+    try {
+      const background = getComputedStyle(document.body).backgroundColor;
+      const text = Export.svgText(svg, base, background);
+      const data = format === 'svg' ? text : await Export.pngDataUrl(text, base, 2, background);
+      vscode.postMessage({ type: 'export', format, data });
+    } catch (err) {
+      vscode.postMessage({ type: 'exportFailed', message: String(err && err.message || err) });
     }
   }
 
@@ -367,6 +397,7 @@
 
   new ResizeObserver(() => {
     const { w, h } = size();
+    if (pending !== null && w > 0 && h > 0) { render(pending); return; }
     if (needsFit && base) { view = Zoom.fit(base, { w, h }, 'all'); needsFit = !view; }
     apply();
   }).observe(stage);
@@ -380,6 +411,7 @@
     if (action === 'width') fitTo('width');
     if (action === 'actual') fitTo('actual');
     if (action === 'selection' && selected) focusElement(selected.kind, selected.id);
+    if (action === 'svg' || action === 'png') exportDiagram(action);
   });
   for (const sel of [layoutSelect, lookSelect]) sel.addEventListener('change', () => render(lastText));
 

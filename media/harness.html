@@ -20,6 +20,9 @@
   <select id="layout"><option value="">default</option><option>dagre</option><option>elk</option><option>elk.stress</option></select>
   <label for="look">Look</label>
   <select id="look"><option value="">default</option><option>neo</option><option>classic</option><option>handDrawn</option></select>
+  <span class="sep"></span>
+  <button data-action="svg" title="Save the whole diagram as SVG">SVG</button>
+  <button data-action="png" title="Save the whole diagram as PNG (2×)">PNG</button>
   <span id="zoom-level"></span>
 </div>
 <div id="stage"></div>
@@ -27,6 +30,7 @@
 <script src="../node_modules/mermaid/dist/mermaid.min.js"></script>
 <script src="zoom.js"></script>
 <script src="labels.js"></script>
+<script src="export.js"></script>
 <script src="preview.js"></script>
 <script>
   window.__out = [];

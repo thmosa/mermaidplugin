@@ -65,3 +65,20 @@ test('axisFor: state diagram läser "direction", annars uppifrån och ned', () =
   assert.equal(Labels.axisFor('stateDiagram-v2\n  A --> B'), 'x');
   assert.equal(Labels.axisFor('stateDiagram\n  direction TB'), 'x');
 });
+
+// ---------------------------------------------------------------- grupper som rymmer sina etiketter
+
+test('growth: en grupp som redan rymmer etiketterna växer inte', () => {
+  assert.deepEqual(Labels.growth({ x: 0, y: 0, w: 100, h: 50 }, [{ x: 10, y: 10, w: 20, h: 10 }], 4), { left: 0, right: 0, top: 0, bottom: 0 });
+});
+
+test('growth: gruppen växer åt det håll etiketten sticker ut, med marginal', () => {
+  const box = { x: 0, y: 0, w: 100, h: 50 };
+  assert.deepEqual(Labels.growth(box, [{ x: 90, y: 10, w: 20, h: 10 }], 4), { left: 0, right: 14, top: 0, bottom: 0 });
+  assert.deepEqual(Labels.growth(box, [{ x: -5, y: 45, w: 20, h: 10 }], 4), { left: 9, right: 0, top: 0, bottom: 9 });
+});
+
+test('growth: flera etiketter, den som sticker ut mest avgör', () => {
+  const box = { x: 0, y: 0, w: 100, h: 50 };
+  assert.deepEqual(Labels.growth(box, [{ x: 90, y: 10, w: 20, h: 10 }, { x: 95, y: 10, w: 20, h: 10 }], 4), { left: 0, right: 19, top: 0, bottom: 0 });
+});

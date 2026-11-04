@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { children, parentOf, initialState } = require('../out/tree');
+const { children, parentOf, initialState, countMatches } = require('../out/tree');
 const { parseDiagram } = require('../out/diagram');
 
 const show = items => items.map(i => i.kind === 'edge' ? `edge:${i.key}` : i.kind === 'edgeGroup' || i.kind === 'info' ? i.kind : `${i.kind}:${i.id}`);
@@ -115,4 +115,55 @@ test('träd sequence: förälder för meddelanden, block, grenar, box och deltag
 test('träd sequence: deltagare och block börjar hopfällda', () => {
   assert.equal(initialState({ kind: 'participants' }), 'collapsed');
   assert.equal(initialState({ kind: 'block', id: 'block0' }), 'collapsed');
+});
+
+// ---------------------------------------------------------------- sök i trädet
+
+test('sök: bara träffar och deras föräldrar visas, utan hänsyn till stora och små bokstäver', () => {
+  assert.deepEqual(show(children(state, undefined, 'WORK')), ['subgraph:Busy', 'edgeGroup']);
+  assert.deepEqual(show(children(state, { kind: 'subgraph', id: 'Busy' }, 'work')), ['node:Work']);
+  // Kanter träffas på nodernas namn och på sin etikett.
+  assert.deepEqual(show(children(state, { kind: 'edgeGroup' }, 'work')), ['edge:Busy_start->Work#0']);
+});
+
+test('sök: en grupp som träffar visar allt den innehåller', () => {
+  assert.deepEqual(show(children(state, undefined, 'inner')), ['subgraph:Busy']);
+  assert.deepEqual(show(children(state, { kind: 'subgraph', id: 'Busy' }, 'inner')), ['subgraph:Inner']);
+  assert.deepEqual(show(children(state, { kind: 'subgraph', id: 'Inner' }, 'inner')), ['node:deep']);
+});
+
+test('sök: tom sökning ger hela trädet, ingen träff ger inget', () => {
+  assert.deepEqual(children(state, undefined, ''), children(state));
+  assert.deepEqual(children(state, undefined, '  '), children(state));
+  assert.deepEqual(children(state, undefined, 'finnsinte'), []);
+});
+
+test('sök: diagramtyp som inte stöds visar fortfarande informationsraden', () => {
+  assert.equal(children(parseDiagram('erDiagram\n  A ||--o{ B : has'), undefined, 'x')[0].kind, 'info');
+});
+
+test('sök sequence: deltagare, meddelanden och blocktitlar, med blocken runt träffen', () => {
+  assert.deepEqual(showSeq(children(seq, undefined, 'pay')), ['participants', 'block:block0']);
+  assert.deepEqual(showSeq(children(seq, { kind: 'participants' }, 'pay')), ['node:Pay']);
+  assert.deepEqual(showSeq(children(seq, { kind: 'block', id: 'block0' }, 'pay')), ['block:block0:1']);
+  assert.deepEqual(showSeq(children(seq, { kind: 'block', id: 'block0:1' }, 'pay')), ['edge:API->Pay#0']);
+  // Meddelandetext långt ner i nästlade block.
+  assert.deepEqual(showSeq(children(seq, undefined, 'm2')), ['block:block0']);
+  assert.deepEqual(showSeq(children(seq, { kind: 'block', id: 'block0' }, 'm2')), ['block:block0:0']);
+  assert.deepEqual(showSeq(children(seq, { kind: 'block', id: 'block0:0' }, 'm2')), ['block:block1']);
+  // Grenens titel: hela grenen visas.
+  assert.deepEqual(showSeq(children(seq, { kind: 'block', id: 'block0' }, 'obetald')), ['block:block0:1']);
+  assert.deepEqual(showSeq(children(seq, { kind: 'block', id: 'block0:1' }, 'obetald')), ['edge:API->Pay#0']);
+});
+
+test('sök: antal träffar räknar bara det som själv träffar, inte föräldrarna', () => {
+  assert.equal(countMatches(seq, 'pay'), 2);
+  assert.equal(countMatches(state, 'work'), 2);
+  assert.equal(countMatches(state, ''), 0);
+});
+
+test('sök: under sökning börjar grupperna utfällda så att träffarna syns', () => {
+  assert.equal(initialState({ kind: 'subgraph', id: 'Busy' }, true), 'expanded');
+  assert.equal(initialState({ kind: 'edgeGroup' }, true), 'expanded');
+  assert.equal(initialState({ kind: 'node', id: 'Idle' }, true), 'none');
 });

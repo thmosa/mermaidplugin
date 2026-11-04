@@ -23,13 +23,21 @@ Other diagram types are shown in the preview but have no tree yet.
 - **Click in the preview** to select the item in the tree and in the code. In sequence diagrams, click a
   block's keyword (`alt`, `loop` …) to collapse the whole block, its title to collapse its main branch, or a
   branch title (`[else …]`) to collapse that branch.
+- **Search Tree** (the search icon in the view's title bar) filters the tree as you type: names, ids, labels,
+  messages and block titles. Groups open to show the matches; **Clear Search** shows everything again.
 - **Show Only This and Its Neighbors** focuses on one node.
+- **Rename** a node, state, participant, class, subgraph or namespace with F2 in the editor or **Rename…** in
+  the tree. Only real uses of the name change, not labels, messages or comments, and what is hidden or
+  collapsed follows the new name.
+- **Export** the whole diagram from the preview's toolbar as **SVG** or **PNG** (twice the natural size),
+  as it is shown: with hidden parts left out, collapsed groups and the preview's background.
 - **Errors in the editor**: Mermaid's own syntax errors on the right line, and ids that differ only in
   letter case (Mermaid treats `Order` and `order` as different).
 - **Editing support** for `.mmd` and `.mermaid` files: syntax highlighting, auto-closing brackets and quotes,
   and automatic indentation.
 
-The source file is never changed. What is hidden or collapsed is remembered per file in the workspace.
+Hiding and collapsing never change the source file; only Rename does. What is hidden or collapsed is
+remembered per file in the workspace.
 
 ## Usage
 

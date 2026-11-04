@@ -99,3 +99,18 @@ test('grammatik: nyckelord för class diagram färgas', () => {
   const re = new RegExp(String.raw`^\s*${keywords}\b`);
   for (const word of ['class', 'namespace', 'cssClass', 'click', 'link', 'callback']) assert.match(`  ${word} X`, re, word);
 });
+
+test('meny: sök i trädet från panelens rubrik, och rensa sökningen bara när man söker', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const title = id => pkg.contributes.commands.find(c => c.command === id)?.title;
+  assert.equal(title('mermaidTree.search'), 'Search Tree…');
+  assert.equal(title('mermaidTree.clearSearch'), 'Clear Search');
+  const menu = pkg.contributes.menus['view/title'];
+  const search = menu.find(m => m.command === 'mermaidTree.search');
+  const clear = menu.find(m => m.command === 'mermaidTree.clearSearch');
+  assert.match(search.when, /view == mermaidTree\.structure/);
+  assert.match(clear.when, /view == mermaidTree\.structure && mermaidTree\.searching/);
+  // Ctrl+Alt+F är redan VS Codes egen filtrering i träd; vi tar inte över den.
+  const keys = pkg.contributes.keybindings ?? [];
+  assert.ok(!keys.some(k => /ctrl\+alt\+f/i.test(k.key)));
+});

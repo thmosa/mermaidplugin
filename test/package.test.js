@@ -17,8 +17,8 @@ test.before(() => {
 
 test('paket: innehåller det tillägget behöver när det körs', () => {
   for (const f of [
-    'package.json', 'README.md', 'LICENSE', 'language-configuration.json', 'syntaxes/mermaid.tmLanguage.json',
-    'out/extension.js', 'out/mermaidCheck.js', 'media/preview.js', 'media/preview.css', 'media/zoom.js', 'media/labels.js', 'media/tree.svg',
+    'package.json', 'README.md', 'CHANGELOG.md', 'LICENSE', 'language-configuration.json', 'syntaxes/mermaid.tmLanguage.json',
+    'out/extension.js', 'out/mermaidCheck.js', 'media/preview.js', 'media/preview.css', 'media/zoom.js', 'media/labels.js', 'media/export.js', 'media/tree.svg',
     'node_modules/mermaid/dist/mermaid.min.js', 'node_modules/mermaid/dist/mermaid.esm.min.mjs',
   ]) assert.ok(files.includes(f), f);
 });

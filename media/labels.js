@@ -75,6 +75,79 @@
     return offsets.filter(o => o.dx || o.dy).length;
   };
 
+  /**
+   * Hur mycket gruppen `box` behöver växa åt varje håll för att rymma etikettrutorna
+   * `labels` med `margin` till kanten.
+   */
+  Labels.growth = (box, labels, margin = 4) => {
+    const g = { left: 0, right: 0, top: 0, bottom: 0 };
+    for (const l of labels) {
+      g.left = Math.max(g.left, box.x + margin - l.x);
+      g.right = Math.max(g.right, l.x + l.w + margin - (box.x + box.w));
+      g.top = Math.max(g.top, box.y + margin - l.y);
+      g.bottom = Math.max(g.bottom, l.y + l.h + margin - (box.y + box.h));
+    }
+    return g;
+  };
+
+  /**
+   * Mermaid räknar ut storleken på en grupp (subgraf, sammansatt tillstånd) utan kantetikettens
+   * utfyllnad, så en bred etikett vid kanten sticker ut. Gör gruppens rutor större så att de
+   * etiketter vars mitt ligger i gruppen ryms; etiketterna och pilarna flyttas inte.
+   * Ger antalet grupper som växte. Kräver DOM (webviewen).
+   */
+  Labels.fitClusters = (svg, margin = 4) => {
+    const scale = (svg.getScreenCTM() || { a: 1 }).a;
+    const toBox = r => ({ x: r.left, y: r.top, w: r.width, h: r.height });
+    const clusters = [...svg.querySelectorAll('g.cluster, g.statediagram-cluster')]
+      .map(g => ({ g, box: toBox(g.getBoundingClientRect()), labels: [] }));
+    for (const el of svg.querySelectorAll('g.edgeLabel')) {
+      if (!el.textContent.trim()) continue;
+      const l = toBox(el.getBoundingClientRect());
+      if (!l.w || !l.h) continue;
+      const cx = l.x + l.w / 2;
+      const cy = l.y + l.h / 2;
+      // Den minsta grupp som etikettens mitt ligger i.
+      const own = clusters
+        .filter(c => cx > c.box.x && cx < c.box.x + c.box.w && cy > c.box.y && cy < c.box.y + c.box.h)
+        .sort((a, b) => a.box.w * a.box.h - b.box.w * b.box.h)[0];
+      if (own) own.labels.push(l);
+    }
+    let grown = 0;
+    for (const { g, box, labels } of clusters) {
+      const d = Labels.growth(box, labels, margin * scale);
+      if (Math.max(d.left, d.right, d.top, d.bottom) < 0.5) continue;
+      // Rutor som ligger mot gruppens kant följer med åt det hållet (ram, rubrikfält, innehåll).
+      for (const rect of g.querySelectorAll('rect')) {
+        const r = rect.getBoundingClientRect();
+        const k = (rect.getScreenCTM() || { a: 1 }).a;
+        const at = (a, b) => Math.abs(a - b) < 1;
+        const left = at(r.left, box.x) ? d.left : 0;
+        const right = at(r.right, box.x + box.w) ? d.right : 0;
+        const top = at(r.top, box.y) ? d.top : 0;
+        const bottom = at(r.bottom, box.y + box.h) ? d.bottom : 0;
+        if (!left && !right && !top && !bottom) continue;
+        rect.setAttribute('x', rect.x.baseVal.value - left / k);
+        rect.setAttribute('width', rect.width.baseVal.value + (left + right) / k);
+        rect.setAttribute('y', rect.y.baseVal.value - top / k);
+        rect.setAttribute('height', rect.height.baseVal.value + (top + bottom) / k);
+      }
+      // Rubriken hålls mitt på gruppen och överst.
+      const title = g.querySelector(':scope > g.cluster-label');
+      if (title) {
+        const k = (title.parentNode.getScreenCTM() || { a: 1 }).a;
+        const m = title.transform.baseVal.consolidate()?.matrix;
+        const dx = (d.right - d.left) / 2 / k;
+        const dy = -d.top / k;
+        title.setAttribute('transform', m
+          ? `matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e + dx} ${m.f + dy})`
+          : `translate(${dx} ${dy})`);
+      }
+      grown++;
+    }
+    return grown;
+  };
+
   if (typeof module === 'object' && module.exports) module.exports = Labels;
   else root.Labels = Labels;
 })(typeof self !== 'undefined' ? self : this);

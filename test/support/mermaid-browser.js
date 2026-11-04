@@ -134,4 +134,4 @@ async function openMermaid() {
   return { render, labelOverlaps, close: () => browser.close() };
 }
 
-module.exports = { openMermaid };
+module.exports = { openMermaid, launch };
