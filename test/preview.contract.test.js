@@ -78,3 +78,50 @@ test('förhandsvisning: klick på en pils text skickar alla piltexter och vilken
   // Texten markeras som vald.
   assert.equal(await page.evaluate(() => document.querySelector('#stage svg .mm-selected')?.textContent.trim()), 'timeout');
 });
+
+/** Fyllnadsfärgen på första nodens ruta efter att diagrammet ritats med ett tema. */
+async function nodeFill(theme) {
+  const before = await renderedCount();
+  await page.evaluate(theme => window.postMessage({ type: 'render', text: 'flowchart LR\n  A --> B', ...theme }, '*'), theme);
+  await page.waitForFunction(n => window.__out.filter(m => m.type === 'rendered').length > n, before, { timeout: 10000 });
+  return page.evaluate(() => getComputedStyle(document.querySelector('#stage svg g.node rect, #stage svg g.node path')).fill);
+}
+
+test('förhandsvisning: tema och temafärger från inställningarna används, auto följer VS Code', async () => {
+  const auto = await nodeFill({});
+  assert.equal(await nodeFill({ theme: 'auto' }), auto);
+  const forest = await nodeFill({ theme: 'forest' });
+  assert.notEqual(forest, auto);
+  assert.equal(await nodeFill({ theme: 'base', themeVariables: { primaryColor: '#ff0000' } }), 'rgb(255, 0, 0)');
+  // Utan inställningar igen: tillbaka till VS Codes tema.
+  assert.equal(await nodeFill({}), auto);
+});
+
+/** Skickar ett diagram och väntar tills det ritats. */
+async function draw(msg) {
+  const before = await renderedCount();
+  await page.evaluate(msg => window.postMessage({ type: 'render', ...msg }, '*'), msg);
+  await page.waitForFunction(n => window.__out.filter(m => m.type === 'rendered').length > n, before, { timeout: 10000 });
+}
+
+test('förhandsvisning: en ny fil anpassas till fönstret (Fit), samma fil behåller zoomen', async () => {
+  const first = 'flowchart LR\n  A --> B --> C';
+  const other = 'stateDiagram-v2\n  [*] --> X\n  X --> Y : go\n  Y --> [*]';
+  await draw({ text: first, fit: true });
+  const fitted = await page.evaluate(() => window.__preview.view.s);
+  // Zooma in, som användaren gör.
+  await page.keyboard.press('+');
+  await page.keyboard.press('+');
+  await page.waitForTimeout(400);
+  const zoomed = await page.evaluate(() => window.__preview.view.s);
+  assert.ok(zoomed > fitted * 1.3, `zoom ${fitted} -> ${zoomed}`);
+  // Samma fil ändras (till exempel något döljs): zoomen ligger kvar.
+  await draw({ text: first + '\n  C --> D' });
+  assert.ok(Math.abs(await page.evaluate(() => window.__preview.view.s) - zoomed) < 1e-6, 'zoomen ska ligga kvar');
+  // Byte till en annan fil: hela diagrammet syns.
+  await draw({ text: other, fit: true });
+  const s = await page.evaluate(() => window.__preview.view.s);
+  await page.keyboard.press('0');
+  await page.waitForTimeout(400);
+  assert.ok(Math.abs(await page.evaluate(() => window.__preview.view.s) - s) < 1e-3, 'ska vara som Fit');
+});

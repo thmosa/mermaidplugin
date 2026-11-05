@@ -10,7 +10,10 @@ import { idAt, rename, renameKeys, renamedId } from './rename';
 import { edgeAtClick } from './edgeClick';
 import { HiddenStore } from './hiddenStore';
 import { NamingStyle, namingIssues, fixAll } from './naming';
-import { participantAt, participantChoices } from './participant';
+import { participantAt, participantChoices, participantCompletion } from './participant';
+import { LEGEND, semanticTokens } from './semantic';
+
+const SEMANTIC_LEGEND = new vscode.SemanticTokensLegend(LEGEND.tokenTypes, LEGEND.tokenModifiers);
 
 
 function isMermaid(doc: vscode.TextDocument): boolean {
@@ -290,6 +293,8 @@ class StructureProvider implements vscode.TreeDataProvider<Item> {
 class Preview {
   private panel: vscode.WebviewPanel | undefined;
   private ready = false;
+  /** Filen som förhandsvisningen senast fick. */
+  private shown: string | undefined;
 
   constructor(
     private readonly ctx: vscode.ExtensionContext,
@@ -340,10 +345,16 @@ class Preview {
     if (this.ready) void this.panel?.webview.postMessage({ type: 'focus', kind, id });
   }
 
-  private update() {
+  update() {
     if (!this.panel || !this.ready || !this.state.doc) return;
     this.panel.title = `Preview: ${vscode.workspace.asRelativePath(this.state.doc.uri)}`;
-    void this.panel.webview.postMessage({ type: 'render', ...this.state.rendered() });
+    const cfg = vscode.workspace.getConfiguration('mermaidTree.preview');
+    const theme = { theme: cfg.get<string>('theme', 'auto'), themeVariables: cfg.get<Record<string, unknown>>('themeVariables', {}) };
+    // En annan fil än förra gången: visa hela diagrammet (Fit) i stället för att behålla zoomen.
+    const uri = this.state.doc.uri.toString();
+    const fit = uri !== this.shown;
+    this.shown = uri;
+    void this.panel.webview.postMessage({ type: 'render', ...this.state.rendered(), ...theme, fit });
   }
 
   private html(webview: vscode.Webview, media: vscode.Uri, mermaidDist: vscode.Uri): string {
@@ -489,6 +500,7 @@ export function activate(ctx: vscode.ExtensionContext) {
   state.onDidChange(() => void updateDiagnostics());
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
     if (e.affectsConfiguration('mermaidTree.namingStyle')) void updateDiagnostics();
+    if (e.affectsConfiguration('mermaidTree.preview')) preview.update();
   }));
   // Diagramtypen visas bredvid panelens namn i stället för som en egen rotnod.
   state.onDidChange(() => { view.description = state.model?.diagramType || undefined; });
@@ -694,6 +706,36 @@ export function activate(ctx: vscode.ExtensionContext) {
       const n = await fixAllNaming(doc);
       void vscode.window.setStatusBarMessage(n ? `Renamed ${n} name${n === 1 ? '' : 's'} to ${namingStyle()}` : 'All names already follow the naming style', 4000);
     }),
+
+    // Semantisk färgläggning: namnen färgas efter vad parsern vet att de är.
+    vscode.languages.registerDocumentSemanticTokensProvider({ language: 'mermaid' }, {
+      provideDocumentSemanticTokens(doc) {
+        const text = doc.getText();
+        const builder = new vscode.SemanticTokensBuilder(SEMANTIC_LEGEND);
+        for (const t of semanticTokens(text, parseDiagram(text))) builder.push(t.line, t.start, t.length, LEGEND.tokenTypes.indexOf(t.type), t.modifiers.length ? 1 : 0);
+        return builder.build();
+      },
+    }, SEMANTIC_LEGEND),
+
+    // Förslag på deltagare när man skriver i ett sequence diagram.
+    vscode.languages.registerCompletionItemProvider({ language: 'mermaid' }, {
+      provideCompletionItems(doc, pos, _token, context) {
+        const text = doc.getText();
+        const r = participantCompletion(text, parseDiagram(text), pos.line, pos.character);
+        if (!r) return undefined;
+        // Ett mellanslag i början av raden är indrag, inte början på ett meddelande.
+        const before = doc.lineAt(pos.line).text.slice(0, r.start);
+        if (context.triggerCharacter === ' ' && /^\s*$/.test(before)) return undefined;
+        const range = new vscode.Range(pos.line, r.start, pos.line, pos.character);
+        return r.items.map((p, i) => {
+          const item = new vscode.CompletionItem({ label: p.id, description: p.label !== p.id ? p.label : undefined }, vscode.CompletionItemKind.Variable);
+          item.range = range;
+          item.sortText = String(i).padStart(4, '0');
+          item.detail = 'Participant';
+          return item;
+        });
+      },
+    }, '>', '+', ' ', ','),
 
     // Byt en enda förekomst av en deltagare mot en annan (Rename byter alla).
     vscode.commands.registerCommand('mermaidTree.changeParticipant', async () => {

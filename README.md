@@ -27,6 +27,8 @@ Other diagram types are shown in the preview but have no tree yet.
 - **Search Tree** (the search icon in the view's title bar) filters the tree as you type: names, ids, labels,
   messages and block titles. Groups open to show the matches; **Clear Search** shows everything again.
 - **Show Only This and Its Neighbors** focuses on one node.
+- **Participant suggestions** in sequence diagrams: when you start a message, after the arrow, in a note and
+  after `activate`, `deactivate` and `destroy`, the participants in the diagram are suggested.
 - **Change Participant…** (right-click a participant in a message, note or activate line of a sequence
   diagram) swaps just that occurrence for another existing participant. Rename changes every use.
 - **Rename** a node, state, participant, class, subgraph or namespace with F2 in the editor or **Rename…** in
@@ -43,6 +45,50 @@ Other diagram types are shown in the preview but have no tree yet.
   `editor.codeActionsOnSave`.
 - **Editing support** for `.mmd` and `.mermaid` files: syntax highlighting, auto-closing brackets and quotes,
   and automatic indentation.
+
+## Colors
+
+**In the editor**, names get their own color, separate from labels, messages and keywords. The extension tells
+VS Code what each name is (semantic highlighting), and your color theme picks the colors:
+
+- `class`: classes in class diagrams
+- `namespace`: groups (subgraphs, composite states, namespaces)
+- `type`: other names (nodes, states, participants)
+
+Where a name is defined it also has the `declaration` modifier. To choose the colors yourself:
+
+```json
+"editor.semanticTokenColorCustomizations": {
+  "rules": {
+    "type:mermaid": "#4FC1FF",
+    "class:mermaid": "#4EC9B0",
+    "namespace:mermaid": { "foreground": "#C586C0", "bold": true },
+    "*.declaration:mermaid": { "underline": true }
+  }
+}
+```
+
+Before semantic highlighting is ready, and in themes that turn it off, the grammar colors names with the
+scope `entity.name.type.node.mermaid`. Labels, arrows and the rest are colored by the grammar, and can be
+changed with `editor.tokenColorCustomizations`:
+
+```json
+"editor.tokenColorCustomizations": {
+  "textMateRules": [
+    { "scope": "entity.name.type.node.mermaid", "settings": { "foreground": "#4FC1FF" } },
+    { "scope": "string.unquoted.label.mermaid", "settings": { "foreground": "#CE9178" } },
+    { "scope": "keyword.operator.arrow.mermaid", "settings": { "foreground": "#C586C0" } }
+  ]
+}
+```
+
+Other scopes: `keyword.control.mermaid` (keywords), `string.unquoted.title.mermaid` (block and box titles),
+`string.unquoted.note.mermaid` (notes) and `comment.line.percentage.mermaid` (comments).
+
+**In the preview**, `mermaidTree.preview.theme` picks Mermaid's theme (`auto` follows VS Code), and
+`mermaidTree.preview.themeVariables` sets Mermaid's theme variables, for example
+`{ "primaryColor": "#ffcc00" }` together with the theme `base`. Exports use the same colors. A diagram's own
+`%%{init}%%` or front matter config still wins.
 
 Hiding and collapsing never change the source file; only Rename does. What is hidden or collapsed is kept
 while the file is open, and everything is shown again when it is reopened. Turn on the setting

@@ -23,8 +23,8 @@
     ["|", "|"]
   ],
   "indentationRules": {
-    "increaseIndentPattern": "^\\s*(?:(?:flowchart|graph)\\b.*|(?:stateDiagram(?:-v2)?|sequenceDiagram|classDiagram(?:-v2)?|erDiagram)\\s*|subgraph\\b.*|note\\s+(?:left|right)\\s+of\\s+[^:]*|(?:loop|alt|else|opt|par|and|critical|option|break|rect|box)\\b.*|[^%\\s].*\\{\\s*)$",
-    "decreaseIndentPattern": "^\\s*(?:end(?:\\s+note)?|\\}|(?:else|and|option)\\b.*)\\s*$"
+    "increaseIndentPattern": "^\\s*(?:(?:flowchart|graph)\\b.*|(?:stateDiagram(?:-v2)?|sequenceDiagram|classDiagram(?:-v2)?|erDiagram)\\s*|subgraph\\b.*|(?i:note\\s+(?:left|right)\\s+of)\\s+[^:]*|(?:loop|alt|else|opt|par|and|critical|option|break|rect|box)\\b.*|[^%\\s].*\\{\\s*)$",
+    "decreaseIndentPattern": "^\\s*(?:end|(?i:end\\s+note)|\\}|(?:else|and|option)\\b.*)\\s*$"
   },
   "folding": {
     "markers": {

@@ -30,3 +30,27 @@ export function participantAt(text: string, model: DiagramModel, line: number, c
 export function participantChoices(model: DiagramModel, current: string): { id: string; label: string }[] {
   return [...model.nodes.values()].filter(n => n.id !== current).map(n => ({ id: n.id, label: n.label }));
 }
+
+// Där en deltagare står: först på raden (avsändaren), efter pilen (mottagaren), i en anteckning
+// (också efter kommatecken) och efter activate, deactivate och destroy.
+const ARROW = String.raw`(?:<<-->>|<<->>|-->>|->>|-->|->|--x|-x|--\)|-\))`;
+const SLOT = [
+  /^\s*$/,
+  new RegExp(String.raw`^\s*[^:\s]+?\s*${ARROW}\s*[+-]?\s*$`),
+  /^\s*note\s+(?:over|left of|right of)\s+(?:[^:,]+,\s*)*$/i,
+  /^\s*(?:activate|deactivate|destroy)\s+$/,
+];
+
+/**
+ * Deltagarna att föreslå vid markören, och kolumnen där det påbörjade ordet börjar (det ersätts),
+ * eller undefined om det inte står en deltagare där.
+ */
+export function participantCompletion(text: string, model: DiagramModel, line: number, character: number):
+  { start: number; items: { id: string; label: string }[] } | undefined {
+  if (model.diagramType !== 'sequenceDiagram') return undefined;
+  const prefix = (text.split(/\r?\n/)[line] ?? '').slice(0, character);
+  const word = /[\p{L}\p{N}_]*$/u.exec(prefix)![0];
+  const before = prefix.slice(0, prefix.length - word.length);
+  if (!SLOT.some(re => re.test(before))) return undefined;
+  return { start: before.length, items: [...model.nodes.values()].map(n => ({ id: n.id, label: n.label })) };
+}

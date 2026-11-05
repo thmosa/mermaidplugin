@@ -100,6 +100,28 @@ test('grammatik: nyckelord för class diagram färgas', () => {
   for (const word of ['class', 'namespace', 'cssClass', 'click', 'link', 'callback']) assert.match(`  ${word} X`, re, word);
 });
 
+test('grammatik: anteckningar färgas oavsett stor eller liten bokstav, som Mermaid läser dem', () => {
+  const grammar = JSON.parse(fs.readFileSync(path.join(root, 'syntaxes', 'mermaid.tmLanguage.json'), 'utf8'));
+  const inline = new RegExp(grammar.repository['note-inline'].match);
+  for (const line of ['  Note over API,Order: hela flödet', '  note right of U: väntar', '  NOTE Left Of X: a']) {
+    const m = inline.exec(line);
+    assert.ok(m, line);
+    assert.match(m[1], /^note$/i);
+  }
+  const block = grammar.repository['note-block'];
+  assert.match('  Note left of Fel', new RegExp(block.begin));
+  assert.match('  End Note', new RegExp(block.end));
+  // Indraget ökar också efter "Note left of X".
+  assert.match('  Note left of Fel', increase);
+});
+
+test('grammatik: create och destroy i sequence diagram färgas', () => {
+  const grammar = JSON.parse(fs.readFileSync(path.join(root, 'syntaxes', 'mermaid.tmLanguage.json'), 'utf8'));
+  const keywords = JSON.stringify(grammar).match(/\(subgraph\|[^)]*\)/)[0];
+  const re = new RegExp(String.raw`^\s*${keywords}\b`);
+  for (const word of ['create', 'destroy']) assert.match(`  ${word} participant X`, re, word);
+});
+
 test('meny: kugghjulet sist i panelens rubrik öppnar tilläggets inställningar', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const cmd = pkg.contributes.commands.find(c => c.command === 'mermaidTree.openSettings');
@@ -129,4 +151,20 @@ test('meny: sök i trädet från panelens rubrik, och rensa sökningen bara när
   // Ctrl+Alt+F är redan VS Codes egen filtrering i träd; vi tar inte över den.
   const keys = pkg.contributes.keybindings ?? [];
   assert.ok(!keys.some(k => /ctrl\+alt\+f/i.test(k.key)));
+});
+
+test('inställningar: tema och temafärger för förhandsvisningen, auto som standard', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const props = pkg.contributes.configuration.properties;
+  const theme = props['mermaidTree.preview.theme'];
+  assert.deepEqual(theme.enum, ['auto', 'default', 'dark', 'forest', 'neutral', 'base']);
+  assert.equal(theme.default, 'auto');
+  assert.equal(theme.enumDescriptions.length, theme.enum.length);
+  const vars = props['mermaidTree.preview.themeVariables'];
+  assert.equal(vars.type, 'object');
+  assert.deepEqual(vars.default, {});
+  // Förhandsvisningen får inställningarna med varje diagram och ritas om när de ändras.
+  const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
+  assert.match(src, /type: 'render'[^\n]*theme/);
+  assert.match(src, /affectsConfiguration\('mermaidTree\.preview'\)/);
 });

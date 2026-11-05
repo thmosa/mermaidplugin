@@ -40,6 +40,10 @@
   let needsFit = false;
   // Diagram som kom medan panelen var dold; ritas när den får en storlek igen.
   let pending = null;
+  // En annan fil har öppnats: nästa ritade diagram anpassas till fönstret i stället för att behålla zoomen.
+  let fitNext = false;
+  // Tema från inställningarna: 'auto' (eller inget) följer VS Codes ljusa/mörka tema.
+  let theme = { theme: 'auto', themeVariables: undefined };
 
   const size = () => ({ w: stage.clientWidth, h: stage.clientHeight });
 
@@ -275,7 +279,8 @@
 
   function mermaidConfig() {
     const dark = document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast');
-    const cfg = { startOnLoad: false, securityLevel: 'strict', theme: dark ? 'dark' : 'default' };
+    const cfg = { startOnLoad: false, securityLevel: 'strict', theme: theme.theme && theme.theme !== 'auto' ? theme.theme : dark ? 'dark' : 'default' };
+    if (theme.themeVariables && Object.keys(theme.themeVariables).length) cfg.themeVariables = theme.themeVariables;
     if (layoutSelect.value) cfg.layout = layoutSelect.value;
     if (lookSelect.value) cfg.look = lookSelect.value;
     return cfg;
@@ -294,7 +299,8 @@
     try {
       const { svg: code } = await mermaid.render(id, text);
       if (seq !== renderSeq) return; // en nyare rendering har redan startat
-      const anchor = captureAnchor();
+      const anchor = fitNext ? null : captureAnchor();
+      fitNext = false;
       stage.innerHTML = code;
       svg = stage.querySelector('svg');
       Labels.spread(svg, Labels.axisFor(text));
@@ -427,6 +433,8 @@
       rects = msg.rects || [];
       sections = msg.sections || {};
       collapsed = msg.collapsed || [];
+      theme = { theme: msg.theme || 'auto', themeVariables: msg.themeVariables };
+      if (msg.fit) { fitNext = true; selected = null; }
       render(msg.text);
     }
     if (msg.type === 'focus') focusElement(msg.kind, msg.id);

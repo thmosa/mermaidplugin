@@ -5,6 +5,10 @@
   "patterns": [
     { "include": "#frontmatter" },
     { "include": "#comment" },
+    { "include": "#sequence" },
+    { "include": "#class" },
+    { "include": "#state" },
+    { "include": "#flowchart" },
     { "include": "#header" },
     { "include": "#note-block" },
     { "include": "#statements" }
@@ -29,13 +33,233 @@
         "2": { "name": "constant.language.direction.mermaid" }
       }
     },
+
+    "sequence": {
+      "comment": "Sequence diagram: från rubriken till filens slut.",
+      "begin": "^\\s*(sequenceDiagram)\\b",
+      "end": "(?!x)x",
+      "beginCaptures": { "1": { "name": "keyword.control.diagram.mermaid" } },
+      "patterns": [
+        { "include": "#comment" },
+        { "include": "#participant-decl" },
+        { "include": "#block-title" },
+        { "include": "#note-inline" },
+        { "include": "#string" },
+        { "include": "#arrow" },
+        { "include": "#transition-label" },
+        { "include": "#keyword" },
+        { "include": "#name" }
+      ]
+    },
+    "class": {
+      "comment": "Class diagram: från rubriken till filens slut.",
+      "begin": "^\\s*(classDiagram-v2|classDiagram)\\b",
+      "end": "(?!x)x",
+      "beginCaptures": { "1": { "name": "keyword.control.diagram.mermaid" } },
+      "patterns": [
+        { "include": "#comment" },
+        { "include": "#class-body" },
+        { "include": "#class-note" },
+        { "include": "#lollipop" },
+        { "include": "#style-line" },
+        { "include": "#click-line" },
+        { "include": "#class-ref" },
+        { "include": "#stereotype" },
+        { "include": "#string" },
+        { "include": "#generic" },
+        { "include": "#shape" },
+        { "include": "#arrow" },
+        { "include": "#transition-label" },
+        { "include": "#direction" },
+        { "include": "#keyword" },
+        { "include": "#name" }
+      ]
+    },
+    "state": {
+      "comment": "State diagram: från rubriken till filens slut.",
+      "begin": "^\\s*(stateDiagram-v2|stateDiagram)\\b",
+      "end": "(?!x)x",
+      "beginCaptures": { "1": { "name": "keyword.control.diagram.mermaid" } },
+      "patterns": [
+        { "include": "#comment" },
+        { "include": "#note-block" },
+        { "include": "#note-inline" },
+        { "include": "#style-line" },
+        { "include": "#class-assign" },
+        { "include": "#class-ref" },
+        { "include": "#string" },
+        { "include": "#state-as" },
+        { "include": "#stereotype" },
+        { "include": "#start-end" },
+        { "include": "#arrow" },
+        { "include": "#transition-label" },
+        { "include": "#direction" },
+        { "include": "#keyword" },
+        { "include": "#name" }
+      ]
+    },
+    "flowchart": {
+      "comment": "Flowchart: från rubriken till filens slut.",
+      "begin": "^\\s*(flowchart|graph)\\b(?:\\s+(TB|TD|BT|RL|LR))?",
+      "end": "(?!x)x",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.diagram.mermaid" },
+        "2": { "name": "constant.language.direction.mermaid" }
+      },
+      "patterns": [
+        { "include": "#comment" },
+        { "include": "#subgraph" },
+        { "include": "#style-line" },
+        { "include": "#class-assign" },
+        { "include": "#click-line" },
+        { "include": "#class-ref" },
+        { "include": "#string" },
+        { "include": "#edge-label" },
+        { "include": "#edge-text" },
+        { "include": "#shape" },
+        { "include": "#arrow" },
+        { "include": "#direction" },
+        { "include": "#keyword" },
+        { "include": "#flow-name" }
+      ]
+    },
+
+    "flow-name": {
+      "comment": "I flowchart får namn ha bindestreck (my-node), men inte före en pil.",
+      "match": "[\\p{L}\\p{N}_$]+(?:-[\\p{L}\\p{N}_$]+)*",
+      "name": "entity.name.type.node.mermaid"
+    },
+    "name": {
+      "comment": "Ett namn: deltagare, nod, tillstånd, klass eller grupp. Kommer sist, efter allt som är text.",
+      "match": "[\\p{L}\\p{N}_$]+",
+      "name": "entity.name.type.node.mermaid"
+    },
+    "names": {
+      "comment": "Namn med kommatecken emellan (A,B).",
+      "patterns": [{ "include": "#name" }]
+    },
+    "participant-decl": {
+      "match": "^\\s*(?:(create)\\s+)?(participant|actor)\\s+([^\\s@]+?)(?:\\s+(as)\\s+(.*?))?\\s*$",
+      "captures": {
+        "1": { "name": "keyword.control.mermaid" },
+        "2": { "name": "keyword.control.mermaid" },
+        "3": { "name": "entity.name.type.node.mermaid" },
+        "4": { "name": "keyword.control.mermaid" },
+        "5": { "name": "string.unquoted.label.mermaid" }
+      }
+    },
+    "block-title": {
+      "comment": "Rader där resten är en titel: loop, alt, box, title …",
+      "match": "^\\s*(title|loop|alt|else|opt|par_over|par|and|critical|option|break|rect|box|autonumber|accTitle|accDescr|section)\\b(.*)$",
+      "captures": {
+        "1": { "name": "keyword.control.mermaid" },
+        "2": { "name": "string.unquoted.title.mermaid" }
+      }
+    },
+    "subgraph": {
+      "patterns": [
+        {
+          "comment": "subgraph id, subgraph id [Titel], subgraph id[\"Titel\"]",
+          "match": "^\\s*(subgraph)\\s+([\\p{L}\\p{N}_$-]+)\\s*(?:(\\[)([^\\]]*)(\\]))?(?=\\s*(?:\"|$))",
+          "captures": {
+            "1": { "name": "keyword.control.mermaid" },
+            "2": { "name": "entity.name.type.node.mermaid" },
+            "3": { "name": "punctuation.definition.shape.begin.mermaid" },
+            "4": { "name": "string.unquoted.label.mermaid" },
+            "5": { "name": "punctuation.definition.shape.end.mermaid" }
+          }
+        },
+        {
+          "comment": "subgraph Titel med mellanslag: bara en titel, id:t hittar Mermaid på själv.",
+          "match": "^\\s*(subgraph)\\b(.*)$",
+          "captures": {
+            "1": { "name": "keyword.control.mermaid" },
+            "2": { "name": "string.unquoted.title.mermaid" }
+          }
+        }
+      ]
+    },
+    "state-as": {
+      "comment": "state \"Beskrivning\" as Id: efter ett citat är as-namnet ett id.",
+      "match": "(?<=\")\\s*(as)\\b",
+      "captures": { "1": { "name": "keyword.control.mermaid" } }
+    },
+    "class-body": {
+      "comment": "class X { … }: raderna inuti är medlemmar, inte namn.",
+      "begin": "^\\s*(class)\\s+([\\p{L}\\p{N}_$]+)(~[^~]*~)?(\\[\"[^\"]*\"\\])?\\s*(\\{)\\s*$",
+      "end": "^\\s*(\\})",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.mermaid" },
+        "2": { "name": "entity.name.type.node.mermaid" },
+        "3": { "name": "storage.type.generic.mermaid" },
+        "4": { "name": "string.unquoted.label.mermaid" },
+        "5": { "name": "punctuation.section.block.begin.mermaid" }
+      },
+      "endCaptures": { "1": { "name": "punctuation.section.block.end.mermaid" } },
+      "patterns": [
+        { "include": "#comment" },
+        { "match": "\\S.*", "name": "meta.member.mermaid" }
+      ]
+    },
+    "class-note": {
+      "match": "^\\s*((?i:note))(?:\\s+(for)\\s+([\\p{L}\\p{N}_$]+))?\\s+(\"[^\"]*\")",
+      "captures": {
+        "1": { "name": "keyword.other.note.mermaid" },
+        "2": { "name": "keyword.other.note.mermaid" },
+        "3": { "name": "entity.name.type.node.mermaid" },
+        "4": { "name": "string.unquoted.note.mermaid" }
+      }
+    },
+    "lollipop": {
+      "comment": "Gränssnitt som lollipop (Loggbar ()-- Maskin): gränssnittet är ingen klass.",
+      "patterns": [
+        {
+          "match": "([\\p{L}\\p{N}_$]+)\\s*(\\(\\)--)",
+          "captures": { "1": { "name": "entity.name.type.interface.mermaid" }, "2": { "name": "keyword.operator.arrow.mermaid" } }
+        },
+        {
+          "match": "(--\\(\\))\\s*([\\p{L}\\p{N}_$]+)",
+          "captures": { "1": { "name": "keyword.operator.arrow.mermaid" }, "2": { "name": "entity.name.type.interface.mermaid" } }
+        }
+      ]
+    },
+    "generic": {
+      "match": "~[^~\\s]*~",
+      "name": "storage.type.generic.mermaid"
+    },
+    "class-assign": {
+      "comment": "class A,B klassnamn (flowchart och state): A och B är namn, sist en stilklass.",
+      "match": "^\\s*(class)\\s+([^\\s]+)\\s+([\\w-]+)\\s*;?\\s*$",
+      "captures": {
+        "1": { "name": "keyword.other.style.mermaid" },
+        "2": { "patterns": [{ "include": "#name" }] },
+        "3": { "name": "entity.name.type.class.mermaid" }
+      }
+    },
+    "click-line": {
+      "match": "^\\s*(click)\\s+([\\p{L}\\p{N}_$]+)(.*)$",
+      "captures": {
+        "1": { "name": "keyword.other.style.mermaid" },
+        "2": { "name": "entity.name.type.node.mermaid" },
+        "3": { "name": "support.constant.style.mermaid" }
+      }
+    },
+    "edge-text": {
+      "comment": "Text mitt i en pil: A -- text --> B, A == text ==> B, A -. text .-> B",
+      "match": "(?<=\\s|^|[\\p{L}\\p{N}_\\])}])(--|==|-\\.)\\s+([^-=.>|]+?)\\s+(?=-->|==>|\\.->|---|===|-\\.-)",
+      "captures": {
+        "1": { "name": "keyword.operator.arrow.mermaid" },
+        "2": { "name": "string.unquoted.label.mermaid" }
+      }
+    },
+
     "note-block": {
-      "begin": "^\\s*(note)\\s+(left of|right of|over)\\s+([^:\\s]+)\\s*$",
-      "end": "^\\s*(end note)\\b",
+      "begin": "^\\s*((?i:note))\\s+((?i:left of|right of|over))\\s+([^:\\s]+)\\s*$",
+      "end": "^\\s*((?i:end note))\\b",
       "beginCaptures": {
         "1": { "name": "keyword.other.note.mermaid" },
         "2": { "name": "keyword.other.note.mermaid" },
-        "3": { "name": "variable.other.state.mermaid" }
+        "3": { "name": "entity.name.type.node.mermaid" }
       },
       "endCaptures": { "1": { "name": "keyword.other.note.mermaid" } },
       "contentName": "string.unquoted.note.mermaid"
@@ -89,24 +313,37 @@
       }
     },
     "style-line": {
-      "match": "^\\s*(classDef|style|linkStyle|class|click|cssClass)\\b(.*)$",
-      "captures": {
-        "1": { "name": "keyword.other.style.mermaid" },
-        "2": { "name": "support.constant.style.mermaid" }
-      }
+      "patterns": [
+        {
+          "comment": "style A fill:… : A är ett namn.",
+          "match": "^\\s*(style)\\s+([\\p{L}\\p{N}_$,]+)(.*)$",
+          "captures": {
+            "1": { "name": "keyword.other.style.mermaid" },
+            "2": { "patterns": [{ "include": "#name" }] },
+            "3": { "name": "support.constant.style.mermaid" }
+          }
+        },
+        {
+          "match": "^\\s*(classDef|linkStyle|cssClass)\\b(.*)$",
+          "captures": {
+            "1": { "name": "keyword.other.style.mermaid" },
+            "2": { "name": "support.constant.style.mermaid" }
+          }
+        }
+      ]
     },
     "note-inline": {
-      "match": "^\\s*(note)\\s+(left of|right of|over)\\s+([^:]+?)\\s*(:)(.*)$",
+      "match": "^\\s*((?i:note))\\s+((?i:left of|right of|over))\\s+([^:]+?)\\s*(:)(.*)$",
       "captures": {
         "1": { "name": "keyword.other.note.mermaid" },
         "2": { "name": "keyword.other.note.mermaid" },
-        "3": { "name": "variable.other.state.mermaid" },
+        "3": { "patterns": [{ "include": "#name" }] },
         "4": { "name": "punctuation.separator.mermaid" },
         "5": { "name": "string.unquoted.note.mermaid" }
       }
     },
     "keyword": {
-      "match": "^\\s*(subgraph|end|state|direction|participant|actor|class|namespace|cssClass|click|link|callback|loop|alt|else|opt|par|and|critical|option|break|rect|box|activate|deactivate|autonumber|title|section|accTitle|accDescr)\\b|\\b(as)\\b",
+      "match": "^\\s*(subgraph|end|state|direction|participant|actor|create|destroy|class|namespace|cssClass|click|link|callback|loop|alt|else|opt|par|and|critical|option|break|rect|box|activate|deactivate|autonumber|title|section|accTitle|accDescr)\\b|\\b(as)\\b",
       "name": "keyword.control.mermaid"
     },
     "direction": {

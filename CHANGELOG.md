@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0
+
+- **Participant suggestions** in sequence diagrams: at the start of a message, after the arrow, in notes and
+  after `activate`, `deactivate` and `destroy`.
+- **Colors**: names get their own color in the editor through semantic highlighting (`type`, `class` and
+  `namespace`, with `declaration` where a name is defined), which can be recolored with
+  `editor.semanticTokenColorCustomizations`. The preview's Mermaid theme and theme variables
+  are settings (`mermaidTree.preview.theme`, `mermaidTree.preview.themeVariables`).
+- The preview fits the whole diagram when you switch to another file, and keeps the zoom while you edit
+  the same file.
+- Fix: `Note` with a capital N (and `create`, `destroy`) is highlighted like the other keywords.
+
 ## 0.3.0
 
 - **Change Participant…** in the editor's context menu for sequence diagrams: swap one occurrence of a
