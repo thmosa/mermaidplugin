@@ -44,3 +44,12 @@ test('paket: syntaxkontrollen fungerar med bara paketets filer', async () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('paket: versionen stämmer med CHANGELOG och package-lock, och inget ligger kvar som "Unreleased"', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const lock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
+  const changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
+  assert.equal(/^## (.+)$/m.exec(changelog)?.[1], pkg.version);
+  assert.equal(lock.version, pkg.version);
+  assert.equal(lock.packages[''].version, pkg.version);
+});

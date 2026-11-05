@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 
+- **Change Participant…** in the editor's context menu for sequence diagrams: swap one occurrence of a
+  participant for another existing one.
 - **Click the text on an arrow** in the preview (transition, message, relation) to select it in the tree
   and go to its line in the code.
 - Everything is shown when a file is opened. What is hidden or collapsed is kept while the file is open; the

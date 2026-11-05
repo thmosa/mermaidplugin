@@ -27,6 +27,8 @@ Other diagram types are shown in the preview but have no tree yet.
 - **Search Tree** (the search icon in the view's title bar) filters the tree as you type: names, ids, labels,
   messages and block titles. Groups open to show the matches; **Clear Search** shows everything again.
 - **Show Only This and Its Neighbors** focuses on one node.
+- **Change Participant…** (right-click a participant in a message, note or activate line of a sequence
+  diagram) swaps just that occurrence for another existing participant. Rename changes every use.
 - **Rename** a node, state, participant, class, subgraph or namespace with F2 in the editor or **Rename…** in
   the tree. Only real uses of the name change, not labels, messages or comments, and what is hidden or
   collapsed follows the new name.

@@ -10,6 +10,7 @@ import { idAt, rename, renameKeys, renamedId } from './rename';
 import { edgeAtClick } from './edgeClick';
 import { HiddenStore } from './hiddenStore';
 import { NamingStyle, namingIssues, fixAll } from './naming';
+import { participantAt, participantChoices } from './participant';
 
 
 function isMermaid(doc: vscode.TextDocument): boolean {
@@ -491,6 +492,8 @@ export function activate(ctx: vscode.ExtensionContext) {
   }));
   // Diagramtypen visas bredvid panelens namn i stället för som en egen rotnod.
   state.onDidChange(() => { view.description = state.model?.diagramType || undefined; });
+  // Change Participant visas bara i sequence diagram.
+  state.onDidChange(() => void vscode.commands.executeCommand('setContext', 'mermaidTree.sequence', state.model?.diagramType === 'sequenceDiagram'));
 
   // Sökning i trädet: filtrerar medan man skriver. Filtret ligger kvar när rutan stängs (även när man
   // klickar i trädet) och tas bort med Clear Search eller en tom sökning.
@@ -690,6 +693,36 @@ export function activate(ctx: vscode.ExtensionContext) {
       }
       const n = await fixAllNaming(doc);
       void vscode.window.setStatusBarMessage(n ? `Renamed ${n} name${n === 1 ? '' : 's'} to ${namingStyle()}` : 'All names already follow the naming style', 4000);
+    }),
+
+    // Byt en enda förekomst av en deltagare mot en annan (Rename byter alla).
+    vscode.commands.registerCommand('mermaidTree.changeParticipant', async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) return;
+      const doc = editor.document;
+      const text = doc.getText();
+      const m = parseDiagram(text);
+      const pos = editor.selection.active;
+      const hit = participantAt(text, m, pos.line, pos.character);
+      if (!hit) {
+        void vscode.window.showInformationMessage('Place the cursor on a participant in a message, note or activate line. To rename a participant everywhere, use Rename (F2).');
+        return;
+      }
+      if (hit.blocked) {
+        void vscode.window.showInformationMessage(hit.blocked);
+        return;
+      }
+      const choices = participantChoices(m, hit.id);
+      if (!choices.length) {
+        void vscode.window.showInformationMessage('There is no other participant to change to.');
+        return;
+      }
+      const picked = await vscode.window.showQuickPick(
+        choices.map(c => ({ label: c.id, description: c.label !== c.id ? c.label : undefined })),
+        { title: `Change "${hit.id}" to`, placeHolder: 'Participant' });
+      if (!picked || doc.version !== editor.document.version) return;
+      const range = new vscode.Range(hit.line, hit.start, hit.line, hit.end);
+      await editor.edit(b => b.replace(range, picked.label));
     }),
 
     // Byt namn från trädets högerklicksmeny.

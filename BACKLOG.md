@@ -9,9 +9,6 @@
   behöver det preciseras.
 - **Förslag på deltagare i sequence diagram.** När man börjar skriva ett meddelande (till exempel `A->>`)
   föreslås de deltagare som redan är deklarerade (`participant`/`actor`) eller används i filen.
-- **"Change Participant" i högerklicksmenyn.** Högerklick på en deltagare i ett meddelande i koden ger
-  *Change Participant*, som visar listan med befintliga deltagare och byter just den förekomsten (inte
-  alla, till skillnad från Rename).
 
 ## Sedan tidigare
 

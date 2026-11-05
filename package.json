@@ -2,7 +2,7 @@
   "name": "mermaid-tree",
   "displayName": "Mermaid Tree",
   "description": "Structure tree and live preview for Mermaid diagrams: hide, show and collapse parts of flowcharts, state, sequence and class diagrams.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "local",
   "private": true,
   "license": "MIT",
@@ -52,7 +52,12 @@
         },
         "mermaidTree.namingStyle": {
           "type": "string",
-          "enum": ["off", "camelCase", "PascalCase", "snake_case"],
+          "enum": [
+            "off",
+            "camelCase",
+            "PascalCase",
+            "snake_case"
+          ],
           "enumDescriptions": [
             "No naming warnings.",
             "orderService, w6F2",
@@ -136,6 +141,11 @@
         "category": "Mermaid Tree"
       },
       {
+        "command": "mermaidTree.changeParticipant",
+        "title": "Change Participant…",
+        "category": "Mermaid Tree"
+      },
+      {
         "command": "mermaidTree.openSettings",
         "title": "Settings",
         "category": "Mermaid Tree",
@@ -183,6 +193,11 @@
           "command": "mermaidTree.showTree",
           "when": "resourceLangId == mermaid",
           "group": "mermaid@2"
+        },
+        {
+          "command": "mermaidTree.changeParticipant",
+          "when": "resourceLangId == mermaid && mermaidTree.sequence",
+          "group": "1_modification@8"
         },
         {
           "command": "mermaidTree.fixAllNaming",
@@ -264,6 +279,10 @@
       ],
       "commandPalette": [
         {
+          "command": "mermaidTree.changeParticipant",
+          "when": "editorLangId == mermaid && mermaidTree.sequence"
+        },
+        {
           "command": "mermaidTree.fixAllNaming",
           "when": "editorLangId == mermaid"
         },
@@ -302,8 +321,8 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "tsc -p . && node --test test/*.test.js",
-    "test:unit": "tsc -p . && node --test test/parser.test.js test/state.test.js test/zoom.test.js test/labels.test.js test/language.test.js test/diagnostics.test.js test/tree.test.js test/syntax.test.js test/collapse.test.js test/sequence.test.js test/class.test.js test/rename.test.js test/rename.property.test.js test/edgeClick.test.js test/hiddenStore.test.js test/naming.test.js",
-    "test:contract": "tsc -p . && node --test test/mermaid.contract.test.js test/state.contract.test.js test/mermaid.parse.test.js test/collapse.contract.test.js test/sequence.contract.test.js test/class.contract.test.js test/export.contract.test.js test/preview.contract.test.js test/labels.contract.test.js test/edgeClick.contract.test.js test/naming.contract.test.js",
+    "test:unit": "tsc -p . && node --test test/parser.test.js test/state.test.js test/zoom.test.js test/labels.test.js test/language.test.js test/diagnostics.test.js test/tree.test.js test/syntax.test.js test/collapse.test.js test/sequence.test.js test/class.test.js test/rename.test.js test/rename.property.test.js test/edgeClick.test.js test/hiddenStore.test.js test/naming.test.js test/participant.test.js",
+    "test:contract": "tsc -p . && node --test test/mermaid.contract.test.js test/state.contract.test.js test/mermaid.parse.test.js test/collapse.contract.test.js test/sequence.contract.test.js test/class.contract.test.js test/export.contract.test.js test/preview.contract.test.js test/labels.contract.test.js test/edgeClick.contract.test.js test/naming.contract.test.js test/participant.contract.test.js",
     "package": "tsc -p . && vsce package"
   },
   "dependencies": {
