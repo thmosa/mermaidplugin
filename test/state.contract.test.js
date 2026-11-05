@@ -144,3 +144,63 @@ test('inlärning state: stateDiagram (v1) ritas likadant som v2', async () => {
   assert.equal(r.ok, true, r.error);
   assert.deepEqual(ids(r), ['A', 'B', 'root_start']);
 });
+
+// Vilken grupp ett tillstånd hör till, mätt i den ritade SVG:n: den minsta gruppen som omsluter det.
+async function drawnMembership(text) {
+  const { launch } = require('./support/mermaid-browser');
+  const browser = await launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+    await page.setContent('<div id="s"></div>');
+    await page.addScriptTag({ path: path.join(__dirname, '..', 'node_modules', 'mermaid', 'dist', 'mermaid.min.js') });
+    return await page.evaluate(async text => {
+      mermaid.initialize({ startOnLoad: false, securityLevel: 'strict' });
+      const { svg } = await mermaid.render('mb', text);
+      s.innerHTML = svg;
+      const el = s.querySelector('svg');
+      const re = /-state-(.+)-\d+$/;
+      const clusters = [...el.querySelectorAll('g.statediagram-cluster')]
+        .map(g => ({ id: re.exec(g.id)?.[1], r: g.getBoundingClientRect() })).filter(c => c.id);
+      const out = {};
+      for (const n of el.querySelectorAll('g.node')) {
+        const id = re.exec(n.id)?.[1];
+        if (!id || n.classList.contains('statediagram-note') || clusters.some(c => c.id === id)) continue;
+        const r = n.getBoundingClientRect();
+        const cx = r.left + r.width / 2;
+        const cy = r.top + r.height / 2;
+        out[id] = clusters.filter(c => cx > c.r.left && cx < c.r.right && cy > c.r.top && cy < c.r.bottom)
+          .sort((a, b) => a.r.width * a.r.height - b.r.width * b.r.height)[0]?.id ?? null;
+      }
+      return out;
+    }, text);
+  } finally {
+    await browser.close();
+  }
+}
+
+const parsedMembership = text => Object.fromEntries([...parseState(text).nodes.values()].map(n => [n.id, n.subgraph ?? null]));
+
+test('inlärning state: ett tillstånd som nämns både utanför och inuti ett sammansatt tillstånd ritas inuti', async () => {
+  const outsideFirst = 'stateDiagram-v2\n  A --> X\n  state W {\n    [*] --> X\n    X --> Y\n  }';
+  const insideFirst = 'stateDiagram-v2\n  state W {\n    [*] --> X\n    X --> Y\n  }\n  A --> X';
+  const declOutside = 'stateDiagram-v2\n  X : beskrivning\n  state W {\n    X --> Y\n  }';
+  for (const text of [outsideFirst, insideFirst, declOutside]) {
+    const drawn = await drawnMembership(text);
+    assert.equal(drawn.X, 'W', text);
+    assert.deepEqual(parsedMembership(text), drawn, text);
+  }
+});
+
+test('inlärning state: nämns tillståndet i två sammansatta tillstånd hamnar det i det sista', async () => {
+  const text = 'stateDiagram-v2\n  state V {\n    X --> P\n  }\n  state W {\n    X --> Q\n  }';
+  const drawn = await drawnMembership(text);
+  assert.equal(drawn.X, 'W');
+  assert.deepEqual(parsedMembership(text), drawn);
+});
+
+test('kontrakt state: trädets grupper stämmer med det ritade i largeclass.mmd', async () => {
+  const text = fs.readFileSync(path.join(__dirname, '..', 'samples', 'largeclass.mmd'), 'utf8');
+  const drawn = await drawnMembership(text);
+  const parsed = parsedMembership(text);
+  assert.deepEqual(Object.fromEntries(Object.keys(drawn).map(id => [id, parsed[id]])), drawn);
+});

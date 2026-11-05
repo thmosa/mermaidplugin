@@ -185,3 +185,14 @@ test('state: fokusläge fungerar med grannar via övergångar', () => {
   const m = parseState(demo);
   assert.deepEqual([...neighborhood(m, 'val', 1)].sort(), ['Moving', 'Still', 'val']);
 });
+
+test('state: ett tillstånd som också nämns utanför sitt sammansatta tillstånd hör till det sammansatta', () => {
+  const m = parseState('stateDiagram-v2\n  W6_F2 --> W7_Wait : trigger\n  state W7 {\n    [*] --> W7_Wait\n  }\n  A --> W7_Wait');
+  assert.equal(m.nodes.get('W7_Wait').subgraph, 'W7');
+  assert.equal(m.nodes.get('W6_F2').subgraph, undefined);
+});
+
+test('state: nämns ett tillstånd i två sammansatta tillstånd hör det till det sista', () => {
+  const m = parseState('stateDiagram-v2\n  state V {\n    X --> P\n  }\n  state W {\n    X --> Q\n  }');
+  assert.equal(m.nodes.get('X').subgraph, 'W');
+});

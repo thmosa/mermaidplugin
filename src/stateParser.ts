@@ -54,7 +54,8 @@ export function parseState(text: string): StateModel {
 
   const mention = (id: string, line: number, sg: string | undefined) => {
     if (!firstLine.has(id)) firstLine.set(id, line);
-    if (!membership.has(id)) membership.set(id, sg);
+    // Som Mermaid: det sista sammansatta tillståndet som nämner id:t äger det; utanför räknas bara om inget gör det.
+    if (sg !== undefined || !membership.has(id)) membership.set(id, sg);
   };
 
   let headerSeen = false;

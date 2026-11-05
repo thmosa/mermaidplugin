@@ -7,6 +7,8 @@
 - Everything is shown when a file is opened. What is hidden or collapsed is kept while the file is open; the
   new setting `mermaidTree.rememberHiddenState` keeps it after the file is closed, as before.
 - **Settings** button (gear) in the tree's title bar opens the extension's settings.
+- Fix: a state used in a transition outside its composite state is shown once, inside the composite state
+  (as Mermaid draws it), instead of also at the top of the tree.
 
 ## 0.2.0
 
