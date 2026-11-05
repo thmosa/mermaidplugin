@@ -6,6 +6,9 @@
   and go to its line in the code.
 - Everything is shown when a file is opened. What is hidden or collapsed is kept while the file is open; the
   new setting `mermaidTree.rememberHiddenState` keeps it after the file is closed, as before.
+- **Naming rules**: the setting `mermaidTree.namingStyle` (camelCase, PascalCase or snake_case) warns about
+  names that do not follow it, with quick fixes that rename one name or all names in the file, the command
+  **Fix All Naming Issues**, and `source.fixAll.mermaidTree` for fixing on save.
 - **Settings** button (gear) in the tree's title bar opens the extension's settings.
 - Fix: a state used in a transition outside its composite state is shown once, inside the composite state
   (as Mermaid draws it), instead of also at the top of the tree.

@@ -9,6 +9,7 @@ import { Item, children, parentOf, initialState, countMatches } from './tree';
 import { idAt, rename, renameKeys, renamedId } from './rename';
 import { edgeAtClick } from './edgeClick';
 import { HiddenStore } from './hiddenStore';
+import { NamingStyle, namingIssues, fixAll } from './naming';
 
 
 function isMermaid(doc: vscode.TextDocument): boolean {
@@ -453,7 +454,11 @@ export function activate(ctx: vscode.ExtensionContext) {
     revealLine(edge.line);
   });
 
-  // Fel i editorn: Mermaids syntaxfel och id:n som bara skiljer i stora/små bokstäver.
+  const NAMING = 'naming';
+  const FIX_ALL = vscode.CodeActionKind.SourceFixAll.append('mermaidTree');
+  const namingStyle = () => vscode.workspace.getConfiguration('mermaidTree').get<NamingStyle>('namingStyle', 'off');
+
+  // Fel i editorn: Mermaids syntaxfel, id:n som bara skiljer i stora/små bokstäver och namn som bryter mot stilen.
   const diagnostics = vscode.languages.createDiagnosticCollection('mermaidTree');
   const toDiagnostic = (c: { line: number; start: number; end: number; message: string }, source: string) => {
     const d = new vscode.Diagnostic(new vscode.Range(c.line, c.start, c.line, c.end), c.message, vscode.DiagnosticSeverity.Error);
@@ -467,6 +472,12 @@ export function activate(ctx: vscode.ExtensionContext) {
     const version = doc.version;
     const text = doc.getText();
     const found = caseConflicts(text, m).map(c => toDiagnostic(c, 'Mermaid Tree'));
+    for (const issue of namingIssues(text, m, namingStyle())) {
+      const d = toDiagnostic(issue, 'Mermaid Tree');
+      d.severity = vscode.DiagnosticSeverity.Warning;
+      d.code = NAMING;
+      found.push(d);
+    }
     let err = null;
     try { err = await checkSyntax(text); } catch { /* Mermaid kunde inte laddas; visa bara våra egna fel */ }
     // En nyare version av texten hann komma medan Mermaid tolkade; den uppdaterar själv.
@@ -475,6 +486,9 @@ export function activate(ctx: vscode.ExtensionContext) {
     diagnostics.set(doc.uri, syntax ? [toDiagnostic(syntax, 'Mermaid'), ...found] : found);
   };
   state.onDidChange(() => void updateDiagnostics());
+  ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
+    if (e.affectsConfiguration('mermaidTree.namingStyle')) void updateDiagnostics();
+  }));
   // Diagramtypen visas bredvid panelens namn i stället för som en egen rotnod.
   state.onDidChange(() => { view.description = state.model?.diagramType || undefined; });
 
@@ -612,6 +626,72 @@ export function activate(ctx: vscode.ExtensionContext) {
       },
     }),
 
+    // Snabbfix för namngivningsregeln: byt namn på ett id, eller på alla i filen. Körs som kommando,
+    // så att dolt och hopfällt flyttas till de nya namnen först när man faktiskt väljer fixen.
+    vscode.languages.registerCodeActionsProvider({ language: 'mermaid' }, {
+      provideCodeActions(doc, _range, context) {
+        const style = namingStyle();
+        // Rätta allt, till exempel vid sparning med editor.codeActionsOnSave.
+        if (context.only && FIX_ALL.intersects(context.only)) {
+          if (style === 'off') return [];
+          const a = new vscode.CodeAction(`Rename all names in this file to ${style}`, FIX_ALL);
+          a.command = { title: a.title, command: 'mermaidTree.fixNaming', arguments: [doc.uri] };
+          return [a];
+        }
+        const ours = context.diagnostics.filter(d => d.code === NAMING);
+        if (!ours.length) return [];
+        const text = doc.getText();
+        const issues = namingIssues(text, parseDiagram(text), style);
+        const actions: vscode.CodeAction[] = [];
+        for (const d of ours) {
+          const issue = issues.find(i => i.line === d.range.start.line && i.start === d.range.start.character);
+          if (!issue?.fixable) continue;
+          const a = new vscode.CodeAction(`Rename "${issue.name}" to "${issue.suggestion}"`, vscode.CodeActionKind.QuickFix);
+          a.diagnostics = [d];
+          a.isPreferred = true;
+          a.command = { title: a.title, command: 'mermaidTree.fixNaming', arguments: [doc.uri, issue.id, issue.suggestion] };
+          actions.push(a);
+        }
+        if (issues.filter(i => i.fixable).length > 1) {
+          const all = new vscode.CodeAction(`Rename all names in this file to ${style}`, vscode.CodeActionKind.QuickFix);
+          // Utan kopplade varningar visas den inte i hover-rutan, bara med Ctrl+.
+          all.diagnostics = ours;
+          all.command = { title: all.title, command: 'mermaidTree.fixNaming', arguments: [doc.uri] };
+          actions.push(all);
+        }
+        return actions;
+      },
+    }, { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix, FIX_ALL] }),
+
+    vscode.commands.registerCommand('mermaidTree.fixNaming', async (uri: vscode.Uri, id?: string, newName?: string) => {
+      const doc = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString());
+      if (!doc) return;
+      try {
+        if (id !== undefined && newName !== undefined) {
+          await vscode.workspace.applyEdit(renameEdit(doc, parseDiagram(doc.getText()), id, newName));
+          return;
+        }
+        await fixAllNaming(doc);
+      } catch (e) {
+        void vscode.window.showErrorMessage(String((e as Error).message));
+      }
+    }),
+
+    // Rätta alla namn i filen från kommandopaletten eller editorns högerklicksmeny.
+    vscode.commands.registerCommand('mermaidTree.fixAllNaming', async (uri?: vscode.Uri) => {
+      const doc = uri ? vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString()) : vscode.window.activeTextEditor?.document;
+      if (!doc) return;
+      if (namingStyle() === 'off') {
+        const open = 'Open Settings';
+        if (await vscode.window.showInformationMessage('Choose a naming style first (Mermaid Tree: Naming Style).', open) === open) {
+          await vscode.commands.executeCommand('mermaidTree.openSettings');
+        }
+        return;
+      }
+      const n = await fixAllNaming(doc);
+      void vscode.window.setStatusBarMessage(n ? `Renamed ${n} name${n === 1 ? '' : 's'} to ${namingStyle()}` : 'All names already follow the naming style', 4000);
+    }),
+
     // Byt namn från trädets högerklicksmeny.
     vscode.commands.registerCommand('mermaidTree.renameItem', async (item?: Item) => {
       const target = item ?? view.selection[0];
@@ -634,6 +714,17 @@ export function activate(ctx: vscode.ExtensionContext) {
       }
     }),
   );
+
+  /** Byter alla namn i filen som går att rätta till vald stil, som ett steg att ångra. Ger antalet. */
+  async function fixAllNaming(doc: vscode.TextDocument): Promise<number> {
+    const r = fixAll(doc.getText(), namingStyle());
+    if (!r.renamed.length) return 0;
+    const edit = new vscode.WorkspaceEdit();
+    edit.replace(doc.uri, new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length)), r.text);
+    if (!await vscode.workspace.applyEdit(edit)) return 0;
+    if (state.doc === doc) for (const [oldId, newId] of r.renamed) state.renameKeys(oldId, newId);
+    return r.renamed.length;
+  }
 
   /** Ändringarna för ett namnbyte. Det som är dolt och hopfällt följer med till det nya namnet. */
   function renameEdit(doc: vscode.TextDocument, m: AnyModel, id: string, newName: string): vscode.WorkspaceEdit {

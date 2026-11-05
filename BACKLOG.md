@@ -2,14 +2,16 @@
 
 ## Nya önskemål
 
-- **Namngivningsregler med autokorrigering.** Konfigurerbar stil för id:n, till exempel camelCase,
-  PascalCase eller snake_case. Avvikelser visas som varning i editorn med en snabbfix som byter namn via
-  samma namnbyte som F2, så att alla användningar följer med.
 - **Fler färger, konfigurerbart.** Mer färg i syntaxmarkeringen i editorn och i förhandsvisningen, till
   exempel tema per diagram eller egna färger för noder, kanter och grupper.
 - **"Show All" i Mermaid Tree.** Knappen finns redan (ögat i panelens rubrik, kommandot *Mermaid Tree:
   Show All*). Om den behövs någon annanstans, till exempel i högerklicksmenyn eller som en rad i trädet,
   behöver det preciseras.
+- **Förslag på deltagare i sequence diagram.** När man börjar skriva ett meddelande (till exempel `A->>`)
+  föreslås de deltagare som redan är deklarerade (`participant`/`actor`) eller används i filen.
+- **"Change Participant" i högerklicksmenyn.** Högerklick på en deltagare i ett meddelande i koden ger
+  *Change Participant*, som visar listan med befintliga deltagare och byter just den förekomsten (inte
+  alla, till skillnad från Rename).
 
 ## Sedan tidigare
 

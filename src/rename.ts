@@ -134,7 +134,7 @@ function namespaceSegments(text: string): Segment[] {
 const isClass = (m: DiagramModel) => /^classDiagram/.test(m.diagramType);
 
 /** Id:n som går att byta namn på: noder (utan [*]) och grupper med riktiga namn. */
-function renamable(model: DiagramModel): string[] {
+export function renamable(model: DiagramModel): string[] {
   const ids = [...model.nodes.values()].filter(n => !n.pseudo).map(n => n.id);
   // Box och block i sequence har påhittade id:n (box0, block1).
   if (model.diagramType !== 'sequenceDiagram') ids.push(...model.subgraphs.keys());

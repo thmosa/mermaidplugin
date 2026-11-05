@@ -49,6 +49,18 @@
           "type": "boolean",
           "default": false,
           "description": "Remember which elements are hidden or collapsed in each file after it is closed. When off, everything is shown each time a file is opened."
+        },
+        "mermaidTree.namingStyle": {
+          "type": "string",
+          "enum": ["off", "camelCase", "PascalCase", "snake_case"],
+          "enumDescriptions": [
+            "No naming warnings.",
+            "orderService, w6F2",
+            "OrderService, W6F2",
+            "order_service, w6_f2"
+          ],
+          "default": "off",
+          "description": "Warn about names (nodes, states, participants, classes, groups) that do not follow this style, with a quick fix that renames every use."
         }
       }
     },
@@ -114,6 +126,16 @@
         "icon": "$(clear-all)"
       },
       {
+        "command": "mermaidTree.fixNaming",
+        "title": "Fix Naming",
+        "category": "Mermaid Tree"
+      },
+      {
+        "command": "mermaidTree.fixAllNaming",
+        "title": "Fix All Naming Issues",
+        "category": "Mermaid Tree"
+      },
+      {
         "command": "mermaidTree.openSettings",
         "title": "Settings",
         "category": "Mermaid Tree",
@@ -161,6 +183,11 @@
           "command": "mermaidTree.showTree",
           "when": "resourceLangId == mermaid",
           "group": "mermaid@2"
+        },
+        {
+          "command": "mermaidTree.fixAllNaming",
+          "when": "resourceLangId == mermaid && config.mermaidTree.namingStyle != off",
+          "group": "1_modification@9"
         }
       ],
       "editor/title": [
@@ -237,6 +264,14 @@
       ],
       "commandPalette": [
         {
+          "command": "mermaidTree.fixAllNaming",
+          "when": "editorLangId == mermaid"
+        },
+        {
+          "command": "mermaidTree.fixNaming",
+          "when": "false"
+        },
+        {
           "command": "mermaidTree.collapseGroup",
           "when": "false"
         },
@@ -267,8 +302,8 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "tsc -p . && node --test test/*.test.js",
-    "test:unit": "tsc -p . && node --test test/parser.test.js test/state.test.js test/zoom.test.js test/labels.test.js test/language.test.js test/diagnostics.test.js test/tree.test.js test/syntax.test.js test/collapse.test.js test/sequence.test.js test/class.test.js test/rename.test.js test/rename.property.test.js test/edgeClick.test.js test/hiddenStore.test.js",
-    "test:contract": "tsc -p . && node --test test/mermaid.contract.test.js test/state.contract.test.js test/mermaid.parse.test.js test/collapse.contract.test.js test/sequence.contract.test.js test/class.contract.test.js test/export.contract.test.js test/preview.contract.test.js test/labels.contract.test.js test/edgeClick.contract.test.js",
+    "test:unit": "tsc -p . && node --test test/parser.test.js test/state.test.js test/zoom.test.js test/labels.test.js test/language.test.js test/diagnostics.test.js test/tree.test.js test/syntax.test.js test/collapse.test.js test/sequence.test.js test/class.test.js test/rename.test.js test/rename.property.test.js test/edgeClick.test.js test/hiddenStore.test.js test/naming.test.js",
+    "test:contract": "tsc -p . && node --test test/mermaid.contract.test.js test/state.contract.test.js test/mermaid.parse.test.js test/collapse.contract.test.js test/sequence.contract.test.js test/class.contract.test.js test/export.contract.test.js test/preview.contract.test.js test/labels.contract.test.js test/edgeClick.contract.test.js test/naming.contract.test.js",
     "package": "tsc -p . && vsce package"
   },
   "dependencies": {

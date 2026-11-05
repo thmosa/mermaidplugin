@@ -34,6 +34,11 @@ Other diagram types are shown in the preview but have no tree yet.
   as it is shown: with hidden parts left out, collapsed groups and the preview's background.
 - **Errors in the editor**: Mermaid's own syntax errors on the right line, and ids that differ only in
   letter case (Mermaid treats `Order` and `order` as different).
+- **Naming rules**: set `mermaidTree.namingStyle` to camelCase, PascalCase or snake_case to get a warning on
+  names that do not follow it. The quick fix (Ctrl+.) renames one name, or all names in the file, the same
+  way as Rename. **Fix All Naming Issues** in the editor's context menu and the Command Palette does the
+  same for the whole file. To fix names on save, add `"source.fixAll.mermaidTree": "explicit"` to
+  `editor.codeActionsOnSave`.
 - **Editing support** for `.mmd` and `.mermaid` files: syntax highlighting, auto-closing brackets and quotes,
   and automatic indentation.
 
