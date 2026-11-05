@@ -22,7 +22,8 @@ Other diagram types are shown in the preview but have no tree yet.
   of layout and look. The zoom stays where it was when the diagram changes.
 - **Click in the preview** to select the item in the tree and in the code. In sequence diagrams, click a
   block's keyword (`alt`, `loop` …) to collapse the whole block, its title to collapse its main branch, or a
-  branch title (`[else …]`) to collapse that branch.
+  branch title (`[else …]`) to collapse that branch. Click the text on an arrow (a transition, message or
+  relation) to go to that line.
 - **Search Tree** (the search icon in the view's title bar) filters the tree as you type: names, ids, labels,
   messages and block titles. Groups open to show the matches; **Clear Search** shows everything again.
 - **Show Only This and Its Neighbors** focuses on one node.
@@ -36,8 +37,10 @@ Other diagram types are shown in the preview but have no tree yet.
 - **Editing support** for `.mmd` and `.mermaid` files: syntax highlighting, auto-closing brackets and quotes,
   and automatic indentation.
 
-Hiding and collapsing never change the source file; only Rename does. What is hidden or collapsed is
-remembered per file in the workspace.
+Hiding and collapsing never change the source file; only Rename does. What is hidden or collapsed is kept
+while the file is open, and everything is shown again when it is reopened. Turn on the setting
+`mermaidTree.rememberHiddenState` to remember it per file in the workspace instead. The gear in the
+tree's title bar opens the extension's settings.
 
 ## Usage
 

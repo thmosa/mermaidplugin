@@ -100,6 +100,22 @@ test('grammatik: nyckelord för class diagram färgas', () => {
   for (const word of ['class', 'namespace', 'cssClass', 'click', 'link', 'callback']) assert.match(`  ${word} X`, re, word);
 });
 
+test('meny: kugghjulet sist i panelens rubrik öppnar tilläggets inställningar', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const cmd = pkg.contributes.commands.find(c => c.command === 'mermaidTree.openSettings');
+  assert.ok(cmd, 'kommandot saknas');
+  assert.equal(cmd.title, 'Settings');
+  assert.equal(cmd.icon, '$(gear)');
+  const menu = pkg.contributes.menus['view/title'].filter(m => /^navigation/.test(m.group));
+  const order = g => Number(g.split('@')[1]);
+  const gear = menu.find(m => m.command === 'mermaidTree.openSettings');
+  assert.match(gear.when, /view == mermaidTree\.structure/);
+  assert.ok(menu.every(m => m === gear || order(m.group) < order(gear.group)), 'kugghjulet ska ligga sist');
+  // Kommandot öppnar inställningarna filtrerade på tillägget.
+  const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
+  assert.match(src, /registerCommand\('mermaidTree\.openSettings'[^]*?workbench\.action\.openSettings[^]*?@ext:/);
+});
+
 test('meny: sök i trädet från panelens rubrik, och rensa sökningen bara när man söker', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const title = id => pkg.contributes.commands.find(c => c.command === id)?.title;

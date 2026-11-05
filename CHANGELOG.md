@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Click the text on an arrow** in the preview (transition, message, relation) to select it in the tree
+  and go to its line in the code.
+- Everything is shown when a file is opened. What is hidden or collapsed is kept while the file is open; the
+  new setting `mermaidTree.rememberHiddenState` keeps it after the file is closed, as before.
+- **Settings** button (gear) in the tree's title bar opens the extension's settings.
+
 ## 0.2.0
 
 - **Search Tree**: filter the structure tree by name, id, label, message or block title. Matching groups open

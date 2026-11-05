@@ -7,8 +7,9 @@ import { checkSyntax } from './mermaidCheck';
 import { syntaxDiagnostic } from './syntax';
 import { Item, children, parentOf, initialState, countMatches } from './tree';
 import { idAt, rename, renameKeys, renamedId } from './rename';
+import { edgeAtClick } from './edgeClick';
+import { HiddenStore } from './hiddenStore';
 
-const HIDDEN_STATE = 'mermaidTree.hidden';
 
 function isMermaid(doc: vscode.TextDocument): boolean {
   return doc.languageId === 'mermaid' || /\.(mmd|mermaid)$/i.test(doc.fileName);
@@ -25,18 +26,30 @@ class DiagramState {
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChange = this.changed.event;
 
-  constructor(private readonly ctx: vscode.ExtensionContext) {}
+  private readonly store: HiddenStore;
+
+  constructor(ctx: vscode.ExtensionContext) {
+    this.store = new HiddenStore(ctx.workspaceState,
+      () => vscode.workspace.getConfiguration('mermaidTree').get<boolean>('rememberHiddenState', false));
+  }
 
   setDocument(doc: vscode.TextDocument) {
     if (this.doc?.uri.toString() === doc.uri.toString()) return;
     this.doc = doc;
-    const saved = this.ctx.workspaceState.get<Record<string, string[]>>(HIDDEN_STATE, {});
-    this.hidden = new Set(saved[doc.uri.toString()] ?? []);
+    this.hidden = new Set(this.store.load(doc.uri.toString()));
     this.reparse();
   }
 
   reparse() {
     this.model = this.doc ? parseDiagram(this.doc.getText()) : undefined;
+    this.changed.fire();
+  }
+
+  /** Filen har stängts: nästa gång den öppnas syns allt (om inställningen inte säger annat). */
+  closed(uri: vscode.Uri) {
+    this.store.forget(uri.toString());
+    if (this.doc?.uri.toString() !== uri.toString()) return;
+    this.hidden = new Set(this.store.load(uri.toString()));
     this.changed.fire();
   }
 
@@ -71,11 +84,7 @@ class DiagramState {
   }
 
   private commit() {
-    if (this.doc) {
-      const saved = { ...this.ctx.workspaceState.get<Record<string, string[]>>(HIDDEN_STATE, {}) };
-      saved[this.doc.uri.toString()] = [...this.hidden];
-      void this.ctx.workspaceState.update(HIDDEN_STATE, saved);
-    }
+    if (this.doc) this.store.save(this.doc.uri.toString(), [...this.hidden]);
     this.changed.fire();
   }
 }
@@ -284,6 +293,7 @@ class Preview {
     private readonly ctx: vscode.ExtensionContext,
     private readonly state: DiagramState,
     private readonly onClicked: (kind: 'node' | 'subgraph' | 'block', id: string, toggle: boolean, branch: boolean) => void,
+    private readonly onEdgeClicked: (texts: string[], index: number) => void,
   ) {
     state.onDidChange(() => this.update());
   }
@@ -301,6 +311,7 @@ class Preview {
     this.panel.webview.onDidReceiveMessage(msg => {
       if (msg.type === 'ready') { this.ready = true; this.update(); }
       if (msg.type === 'clicked') this.onClicked(msg.kind, msg.id, msg.toggle === true, msg.branch === true);
+      if (msg.type === 'edgeClicked' && Array.isArray(msg.texts)) this.onEdgeClicked(msg.texts.map(String), Number(msg.index));
       if (msg.type === 'export') void this.save(msg.format, msg.data);
       if (msg.type === 'exportFailed') void vscode.window.showErrorMessage(`Could not export the diagram: ${msg.message}`);
     });
@@ -433,6 +444,13 @@ export function activate(ctx: vscode.ExtensionContext) {
     const m = state.model;
     const line = kind === 'node' ? m?.nodes.get(id)?.line : m?.subgraphs.get(id)?.line;
     if (line !== undefined) revealLine(line);
+  }, (texts, index) => {
+    // Klick på en pils text: kanten i trädet och dess rad i koden.
+    const m = state.model;
+    const edge = m && edgeAtClick(m, state.hidden, texts, index);
+    if (!edge) return;
+    void view.reveal(tree.item({ kind: 'edge', key: edge.key }), { select: true, focus: false });
+    revealLine(edge.line);
   });
 
   // Fel i editorn: Mermaids syntaxfel och id:n som bara skiljer i stora/små bokstäver.
@@ -484,6 +502,15 @@ export function activate(ctx: vscode.ExtensionContext) {
     view,
     diagnostics,
     vscode.workspace.onDidCloseTextDocument(doc => diagnostics.delete(doc.uri)),
+    // En fil räknas som stängd när ingen flik visar den längre (dokumentet kan leva kvar en stund).
+    vscode.window.tabGroups.onDidChangeTabs(e => {
+      const uriOf = (t: vscode.Tab) => t.input instanceof vscode.TabInputText ? t.input.uri.toString() : undefined;
+      const open = new Set(vscode.window.tabGroups.all.flatMap(g => g.tabs.map(uriOf)));
+      for (const t of e.closed) {
+        const uri = uriOf(t);
+        if (uri && !open.has(uri)) state.closed(vscode.Uri.parse(uri));
+      }
+    }),
     vscode.window.onDidChangeActiveTextEditor(track),
     vscode.workspace.onDidChangeTextDocument(e => {
       if (e.document !== state.doc) return;
@@ -542,6 +569,9 @@ export function activate(ctx: vscode.ExtensionContext) {
     }),
 
     vscode.commands.registerCommand('mermaidTree.clearSearch', () => search('')),
+
+    vscode.commands.registerCommand('mermaidTree.openSettings', () =>
+      vscode.commands.executeCommand('workbench.action.openSettings', `@ext:${ctx.extension.id}`)),
 
     vscode.commands.registerCommand('mermaidTree.focusNeighbors', (item?: Item) => {
       const m = state.model;

@@ -10,12 +10,6 @@
 - **"Show All" i Mermaid Tree.** Knappen finns redan (ögat i panelens rubrik, kommandot *Mermaid Tree:
   Show All*). Om den behövs någon annanstans, till exempel i högerklicksmenyn eller som en rad i trädet,
   behöver det preciseras.
-- **Allt synligt när en fil öppnas.** I dag kommer tillägget ihåg per fil vad som är dolt och hopfällt,
-  även efter att filen stängts. Önskemålet är att allt ska visas och vara ikryssat varje gång filen öppnas.
-  Beslut behövs: ska minnet tas bort helt, eller bli en inställning?
-- **Klick på en övergångs text i förhandsvisningen går till koden.** Klick på noder och grupper markerar
-  redan raden i koden och i trädet, men klick på texten på en pil (övergång, meddelande, relation) gör
-  inget ännu.
 
 ## Sedan tidigare
 

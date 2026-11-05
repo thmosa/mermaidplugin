@@ -148,6 +148,35 @@
     return grown;
   };
 
+  /** Texten som den syns: radbrytningar (br, tspan-rader) blir mellanslag. */
+  const visibleText = el => {
+    let s = '';
+    const walk = n => {
+      if (n.nodeType === 3) { s += n.data; return; }
+      if (n.nodeType !== 1) return;
+      if (/^(br|tspan)$/i.test(n.localName)) s += ' ';
+      n.childNodes.forEach(walk);
+    };
+    walk(el);
+    return s.replace(/\s+/g, ' ').trim();
+  };
+
+  const EDGE_TEXT_SEL = 'g.edgeLabel, text.messageText';
+
+  /**
+   * Piltexterna i SVG:ns ordning: kantetiketter (flowchart, state, class) och meddelandetexter
+   * (sequence, en per rad). Tomma etiketter räknas inte. Ger [{el, text}]. Kräver DOM.
+   */
+  Labels.edgeTexts = svg => [...svg.querySelectorAll(EDGE_TEXT_SEL)]
+    .map(el => ({ el, text: visibleText(el) }))
+    .filter(t => t.text);
+
+  /** Platsen i Labels.edgeTexts för texten som `el` ligger i, eller -1. */
+  Labels.edgeTextIndex = (svg, el) => {
+    const own = el.closest(EDGE_TEXT_SEL);
+    return own ? Labels.edgeTexts(svg).findIndex(t => t.el === own) : -1;
+  };
+
   if (typeof module === 'object' && module.exports) module.exports = Labels;
   else root.Labels = Labels;
 })(typeof self !== 'undefined' ? self : this);

@@ -61,3 +61,20 @@ test('förhandsvisning: ett diagram som kommer medan panelen är dold ritas rät
   const zoom = await page.evaluate(() => window.__preview.view.s);
   assert.ok(zoom < 5, `zoom ${zoom}`);
 });
+
+test('förhandsvisning: klick på en pils text skickar alla piltexter och vilken som klickades', async () => {
+  await send(STATE, false);
+  const box = await page.evaluate(() => {
+    const g = [...document.querySelectorAll('#stage svg g.edgeLabel')].find(e => e.textContent.trim() === 'timeout');
+    const r = g.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  await page.evaluate(() => { window.__out.length = 0; });
+  await page.mouse.click(box.x, box.y);
+  const msg = await page.evaluate(() => window.__out.find(m => m.type === 'edgeClicked'));
+  assert.ok(msg, 'inget edgeClicked skickades');
+  assert.equal(msg.texts[msg.index], 'timeout');
+  assert.deepEqual(msg.texts, ['starta', 'ok', 'timeout', 'stäng', 'retry']);
+  // Texten markeras som vald.
+  assert.equal(await page.evaluate(() => document.querySelector('#stage svg .mm-selected')?.textContent.trim()), 'timeout');
+});

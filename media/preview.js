@@ -127,6 +127,7 @@
       }
       return null;
     }
+    if (kind === 'edgeText') return Labels.edgeTexts(svg)[id]?.el || null;
     if (kind === 'subgraph') {
       const re = new RegExp(`-state-${reEscape(id)}-\\d+$`);
       return [...svg.querySelectorAll(CLUSTER_SEL)]
@@ -185,6 +186,9 @@
   function identify(el) {
     const block = identifyBlock(el);
     if (block) return block;
+    // Texten på en pil (övergång, relation, meddelande); id är dess plats bland piltexterna.
+    const index = Labels.edgeTextIndex(svg, el);
+    if (index >= 0) return { kind: 'edgeText', id: index };
     // Sequence: deltagarens ruta har name-attributet; texten (text > tspan) ligger bredvid i samma grupp.
     const direct = `:scope > ${ACTOR_SEL.split(', ').join(', :scope > ')}`;
     let n = el;
@@ -380,7 +384,8 @@
     if (hit) {
       selected = { kind: hit.kind, id: hit.id };
       highlight();
-      vscode.postMessage({ type: 'clicked', kind: hit.kind, id: hit.id, toggle: hit.toggle === true, branch: hit.branch === true });
+      if (hit.kind === 'edgeText') vscode.postMessage({ type: 'edgeClicked', texts: Labels.edgeTexts(svg).map(t => t.text), index: hit.id });
+      else vscode.postMessage({ type: 'clicked', kind: hit.kind, id: hit.id, toggle: hit.toggle === true, branch: hit.branch === true });
     }
   });
 
