@@ -52,17 +52,23 @@
         },
         "mermaidTree.preview.theme": {
           "type": "string",
-          "enum": ["auto", "default", "dark", "forest", "neutral", "base"],
+          "enum": ["auto", "default", "dark", "forest", "neutral", "base", "neo", "neo-dark", "redux", "redux-dark", "redux-color", "redux-dark-color"],
           "enumDescriptions": [
             "Follow VS Code: light themes use Mermaid's default theme, dark themes use dark.",
             "Mermaid's default theme.",
             "Mermaid's dark theme.",
             "Mermaid's forest theme (greens).",
             "Mermaid's neutral theme (greys), good for printing.",
-            "Mermaid's base theme, the one to use with Theme Variables."
+            "Mermaid's base theme, the one to use with Theme Variables.",
+            "Mermaid's neo theme: outlined shapes with gradient borders. Made for the neo look.",
+            "Mermaid's neo theme for dark backgrounds.",
+            "Mermaid's redux theme.",
+            "Mermaid's redux theme for dark backgrounds.",
+            "Mermaid's redux theme with colors.",
+            "Mermaid's redux theme with colors, for dark backgrounds."
           ],
           "default": "auto",
-          "description": "Mermaid theme for the preview and export. A diagram's own %%{init}%% or front matter config still wins."
+          "description": "Mermaid theme for the preview and export. The Theme menu in the preview can try another theme until this setting changes. A diagram's own %%{init}%% or front matter config still wins."
         },
         "mermaidTree.preview.themeVariables": {
           "type": "object",

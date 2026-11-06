@@ -413,6 +413,21 @@ const TOOLBAR_HTML = `<div id="toolbar">
     <option>classic</option>
     <option>handDrawn</option>
   </select>
+  <label for="theme">Theme</label>
+  <select id="theme" title="Try a Mermaid theme. The setting Mermaid Tree › Preview: Theme decides which one is used from the start.">
+    <option>auto</option>
+    <option>default</option>
+    <option>dark</option>
+    <option>forest</option>
+    <option>neutral</option>
+    <option>base</option>
+    <option>neo</option>
+    <option>neo-dark</option>
+    <option>redux</option>
+    <option>redux-dark</option>
+    <option>redux-color</option>
+    <option>redux-dark-color</option>
+  </select>
   <span class="sep"></span>
   <button data-action="svg" title="Save the whole diagram as SVG">SVG</button>
   <button data-action="png" title="Save the whole diagram as PNG (2×)">PNG</button>

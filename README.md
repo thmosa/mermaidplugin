@@ -19,7 +19,9 @@ Other diagram types are shown in the preview but have no tree yet.
 - **Mermaid Structure** view in its own activity bar panel. Uncheck an item to hide it; groups start
   collapsed so large diagrams stay readable.
 - **Preview** next to the editor, with zoom (Ctrl+scroll, pinch, `+` `-` `0` `1` `w`), pan, fit and a choice
-  of layout and look. The zoom stays where it was when the diagram changes.
+  of layout, look and theme. The zoom stays where it was when the diagram changes. The `neo` look shows
+  best together with the `neo` theme. The ELK layouts `elk.stress` and `elk.force` place nodes by
+  force rather than in rows, so they can look scattered; that is how Mermaid draws them.
 - **Click in the preview** to select the item in the tree and in the code. In sequence diagrams, click a
   block's keyword (`alt`, `loop` …) to collapse the whole block, its title to collapse its main branch, or a
   branch title (`[else …]`) to collapse that branch. Click the text on an arrow (a transition, message or
@@ -88,7 +90,8 @@ Other scopes: `keyword.control.mermaid` (keywords), `string.unquoted.title.merma
 **In the preview**, `mermaidTree.preview.theme` picks Mermaid's theme (`auto` follows VS Code), and
 `mermaidTree.preview.themeVariables` sets Mermaid's theme variables, for example
 `{ "primaryColor": "#ffcc00" }` together with the theme `base`. Exports use the same colors. A diagram's own
-`%%{init}%%` or front matter config still wins.
+`%%{init}%%` or front matter config still wins. The **Theme** menu in the preview tries another theme
+without changing the setting; it follows the setting again as soon as the setting changes.
 
 Hiding and collapsing never change the source file; only Rename does. What is hidden or collapsed is kept
 while the file is open, and everything is shown again when it is reopened. Turn on the setting

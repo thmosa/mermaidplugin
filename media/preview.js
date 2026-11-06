@@ -13,6 +13,8 @@
   const zoomLabel = document.getElementById('zoom-level');
   const layoutSelect = document.getElementById('layout');
   const lookSelect = document.getElementById('look');
+  const themeSelect = document.getElementById('theme');
+  let settingTheme = null;    // temat i inställningen, senast det kom från VS Code
 
   // handDrawn-stilen ger noderna klassen rough-node i stället för node.
   const NODE_SEL = 'g.node, g.rough-node';
@@ -425,6 +427,7 @@
     if (action === 'svg' || action === 'png') exportDiagram(action);
   });
   for (const sel of [layoutSelect, lookSelect]) sel.addEventListener('change', () => render(lastText));
+  themeSelect.addEventListener('change', () => { theme = { ...theme, theme: themeSelect.value }; render(lastText); });
 
   window.addEventListener('message', e => {
     const msg = e.data;
@@ -433,7 +436,10 @@
       rects = msg.rects || [];
       sections = msg.sections || {};
       collapsed = msg.collapsed || [];
-      theme = { theme: msg.theme || 'auto', themeVariables: msg.themeVariables };
+      // Menyn visar inställningen; ett val i menyn gäller tills inställningen ändras.
+      const setting = msg.theme || 'auto';
+      if (setting !== settingTheme) { settingTheme = setting; themeSelect.value = setting; }
+      theme = { theme: themeSelect.value, themeVariables: msg.themeVariables };
       if (msg.fit) { fitNext = true; selected = null; }
       render(msg.text);
     }

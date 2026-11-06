@@ -157,9 +157,14 @@ test('inställningar: tema och temafärger för förhandsvisningen, auto som sta
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const props = pkg.contributes.configuration.properties;
   const theme = props['mermaidTree.preview.theme'];
-  assert.deepEqual(theme.enum, ['auto', 'default', 'dark', 'forest', 'neutral', 'base']);
+  assert.deepEqual(theme.enum, ['auto', 'default', 'dark', 'forest', 'neutral', 'base',
+    'neo', 'neo-dark', 'redux', 'redux-dark', 'redux-color', 'redux-dark-color']);
   assert.equal(theme.default, 'auto');
   assert.equal(theme.enumDescriptions.length, theme.enum.length);
+  // Temamenyn i förhandsvisningen har samma val som inställningen, i VS Code och i testsidan.
+  const options = html => [...(/<select id="theme"[^>]*>([\s\S]*?)<\/select>/.exec(html) ?? [, ''])[1].matchAll(/<option>([^<]+)<\/option>/g)].map(m => m[1]);
+  assert.deepEqual(options(fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8')), theme.enum);
+  assert.deepEqual(options(fs.readFileSync(path.join(root, 'media', 'harness.html'), 'utf8')), theme.enum);
   const vars = props['mermaidTree.preview.themeVariables'];
   assert.equal(vars.type, 'object');
   assert.deepEqual(vars.default, {});

@@ -97,6 +97,34 @@ test('förhandsvisning: tema och temafärger från inställningarna används, au
   assert.equal(await nodeFill({}), auto);
 });
 
+test('förhandsvisning: temamenyn visar inställningen, och ett val i menyn gäller tills inställningen ändras', async () => {
+  const usedTheme = () => page.evaluate(() => mermaid.mermaidAPI.getConfig().theme);
+  const menu = () => page.$eval('#theme', s => s.value);
+  const sendTheme = async theme => {
+    const before = await renderedCount();
+    await page.evaluate(theme => window.postMessage({ type: 'render', text: 'flowchart LR\n  A --> B', theme }, '*'), theme);
+    await page.waitForFunction(n => window.__out.filter(m => m.type === 'rendered').length > n, before, { timeout: 10000 });
+  };
+  await sendTheme('neo');
+  assert.equal(await menu(), 'neo');
+  assert.equal(await usedTheme(), 'neo');
+  // Ett val i menyn ritar om med det temat.
+  const before = await renderedCount();
+  await page.selectOption('#theme', 'redux');
+  await page.waitForFunction(n => window.__out.filter(m => m.type === 'rendered').length > n, before, { timeout: 10000 });
+  assert.equal(await usedTheme(), 'redux');
+  // Nästa ändring i filen har samma inställning: menyvalet står kvar.
+  await sendTheme('neo');
+  assert.equal(await menu(), 'redux');
+  assert.equal(await usedTheme(), 'redux');
+  // Inställningen ändras: menyn följer med.
+  await sendTheme('forest');
+  assert.equal(await menu(), 'forest');
+  assert.equal(await usedTheme(), 'forest');
+  await sendTheme(undefined);
+  assert.equal(await menu(), 'auto');
+});
+
 /** Skickar ett diagram och väntar tills det ritats. */
 async function draw(msg) {
   const before = await renderedCount();
