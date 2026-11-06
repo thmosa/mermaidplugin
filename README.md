@@ -40,6 +40,11 @@ Other diagram types are shown in the preview but have no tree yet.
   as it is shown: with hidden parts left out, collapsed groups and the preview's background.
 - **Errors in the editor**: Mermaid's own syntax errors on the right line, and ids that differ only in
   letter case (Mermaid treats `Order` and `order` as different).
+- **Look-alike letters**: a warning on names with Cyrillic or Greek letters that look Latin, or full-width
+  letters, such as `Оrder` with a Cyrillic `О`. Mermaid draws it as another name than `Order` although the
+  code looks the same. The quick fix **Use Latin letters** changes every use, and joins it with `Order`
+  when that name exists. Names written entirely in Cyrillic or Greek are fine unless they look exactly
+  like another name.
 - **Naming rules**: set `mermaidTree.namingStyle` to camelCase, PascalCase or snake_case to get a warning on
   names that do not follow it. The quick fix (Ctrl+.) renames one name, or all names in the file, the same
   way as Rename. **Fix All Naming Issues** in the editor's context menu and the Command Palette does the

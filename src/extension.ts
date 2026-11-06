@@ -10,6 +10,7 @@ import { idAt, rename, renameKeys, renamedId } from './rename';
 import { edgeAtClick } from './edgeClick';
 import { HiddenStore } from './hiddenStore';
 import { NamingStyle, namingIssues, fixAll } from './naming';
+import { lookalikeIssues } from './lookalike';
 import { participantAt, participantChoices, participantCompletion } from './participant';
 import { LEGEND, semanticTokens } from './semantic';
 
@@ -482,6 +483,7 @@ export function activate(ctx: vscode.ExtensionContext) {
   });
 
   const NAMING = 'naming';
+  const LOOKALIKE = 'lookalike';
   const FIX_ALL = vscode.CodeActionKind.SourceFixAll.append('mermaidTree');
   const namingStyle = () => vscode.workspace.getConfiguration('mermaidTree').get<NamingStyle>('namingStyle', 'off');
 
@@ -504,6 +506,14 @@ export function activate(ctx: vscode.ExtensionContext) {
       d.severity = vscode.DiagnosticSeverity.Warning;
       d.code = NAMING;
       found.push(d);
+    }
+    for (const issue of lookalikeIssues(text, m)) {
+      for (const r of issue.ranges) {
+        const d = toDiagnostic({ ...r, message: issue.message }, 'Mermaid Tree');
+        d.severity = vscode.DiagnosticSeverity.Warning;
+        d.code = LOOKALIKE;
+        found.push(d);
+      }
     }
     let err = null;
     try { err = await checkSyntax(text); } catch { /* Mermaid kunde inte laddas; visa bara våra egna fel */ }
@@ -668,11 +678,26 @@ export function activate(ctx: vscode.ExtensionContext) {
           a.command = { title: a.title, command: 'mermaidTree.fixNaming', arguments: [doc.uri] };
           return [a];
         }
-        const ours = context.diagnostics.filter(d => d.code === NAMING);
-        if (!ours.length) return [];
         const text = doc.getText();
-        const issues = namingIssues(text, parseDiagram(text), style);
         const actions: vscode.CodeAction[] = [];
+        // Tecken som ser latinska ut: byt till latinska bokstäver överallt där namnet används.
+        const lookalikes = context.diagnostics.filter(d => d.code === LOOKALIKE);
+        if (lookalikes.length) {
+          for (const issue of lookalikeIssues(text, parseDiagram(text))) {
+            const ds = lookalikes.filter(d => issue.ranges.some(r => r.line === d.range.start.line && r.start === d.range.start.character));
+            if (!ds.length || !issue.fixable) continue;
+            const a = new vscode.CodeAction(issue.merges
+              ? `Use Latin letters: "${issue.name}" → "${issue.suggestion}" (the existing name)`
+              : `Use Latin letters: "${issue.name}" → "${issue.suggestion}"`, vscode.CodeActionKind.QuickFix);
+            a.diagnostics = ds;
+            a.isPreferred = true;
+            a.command = { title: a.title, command: 'mermaidTree.fixLookalike', arguments: [doc.uri, issue.id] };
+            actions.push(a);
+          }
+        }
+        const ours = context.diagnostics.filter(d => d.code === NAMING);
+        if (!ours.length) return actions;
+        const issues = namingIssues(text, parseDiagram(text), style);
         for (const d of ours) {
           const issue = issues.find(i => i.line === d.range.start.line && i.start === d.range.start.character);
           if (!issue?.fixable) continue;
@@ -705,6 +730,19 @@ export function activate(ctx: vscode.ExtensionContext) {
       } catch (e) {
         void vscode.window.showErrorMessage(String((e as Error).message));
       }
+    }),
+
+    // Byt tecken som ser latinska ut mot latinska bokstäver; ett namn som ser ut som ett annat slås ihop med det.
+    vscode.commands.registerCommand('mermaidTree.fixLookalike', async (uri: vscode.Uri, id: string) => {
+      const doc = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString());
+      if (!doc) return;
+      const m = parseDiagram(doc.getText());
+      const issue = lookalikeIssues(doc.getText(), m).find(i => i.id === id);
+      if (!issue?.fixable) return;
+      const edit = new vscode.WorkspaceEdit();
+      for (const r of issue.ranges) edit.replace(doc.uri, new vscode.Range(r.line, r.start, r.line, r.end), issue.suggestion);
+      if (!await vscode.workspace.applyEdit(edit)) return;
+      if (state.doc === doc) state.renameKeys(id, renamedId(m, id, issue.suggestion));
     }),
 
     // Rätta alla namn i filen från kommandopaletten eller editorns högerklicksmeny.
