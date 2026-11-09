@@ -12,6 +12,7 @@ import { HiddenStore } from './hiddenStore';
 import { NamingStyle, namingIssues, fixAll, similarNames } from './naming';
 import { lookalikeIssues } from './lookalike';
 import { MergeConflict, MergeResult, mergeClassDiagrams } from './mergeClass';
+import { Shown, Target, resolveTarget, targetAt } from './showInDiagram';
 import { participantAt, participantChoices, participantCompletion } from './participant';
 import { LEGEND, semanticTokens } from './semantic';
 
@@ -354,6 +355,8 @@ class Preview {
   private ready = false;
   /** Filen som förhandsvisningen senast fick. */
   private shown: string | undefined;
+  /** Det som ska markeras så snart diagrammet har ritats. */
+  private pendingShow: object | undefined;
 
   constructor(
     private readonly ctx: vscode.ExtensionContext,
@@ -373,9 +376,13 @@ class Preview {
       { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [media, mermaidDist] });
     this.ready = false;
     this.panel.webview.html = this.html(this.panel.webview, media, mermaidDist);
-    this.panel.onDidDispose(() => { this.panel = undefined; });
+    this.panel.onDidDispose(() => { this.panel = undefined; this.pendingShow = undefined; this.shown = undefined; });
     this.panel.webview.onDidReceiveMessage(msg => {
       if (msg.type === 'ready') { this.ready = true; this.update(); }
+      if (msg.type === 'rendered' && this.pendingShow) {
+        void this.panel?.webview.postMessage(this.pendingShow);
+        this.pendingShow = undefined;
+      }
       if (msg.type === 'clicked') this.onClicked(msg.kind, msg.id, msg.toggle === true, msg.branch === true);
       if (msg.type === 'edgeClicked' && Array.isArray(msg.texts)) this.onEdgeClicked(msg.texts.map(String), Number(msg.index));
       if (msg.type === 'export') void this.save(msg.format, msg.data);
@@ -402,6 +409,14 @@ class Preview {
 
   focus(kind: 'node' | 'subgraph' | 'block', id: string) {
     if (this.ready) void this.panel?.webview.postMessage({ type: 'focus', kind, id });
+  }
+
+  /** Öppnar förhandsvisningen och markerar elementet, när diagrammet som ska visas är ritat. */
+  show(shown: Exclude<Shown, { hidden: string }>) {
+    this.open();
+    const msg = shown.kind === 'edgeText' ? { ...shown, type: 'focusEdge' } : { type: 'focus', kind: shown.kind, id: shown.id };
+    if (this.ready && this.shown === this.state.doc?.uri.toString()) void this.panel?.webview.postMessage(msg);
+    else this.pendingShow = msg;
   }
 
   /** Inget i bilden är valt längre. */
@@ -774,6 +789,50 @@ export function activate(ctx: vscode.ExtensionContext) {
     vscode.commands.registerCommand('mermaidTree.expandGroup', (item?: Item) => {
       const target = item ?? view.selection[0];
       if (target?.kind === 'subgraph' || target?.kind === 'block') { state.setCollapsed(target.id, false); preview.focus(target.kind, target.id); }
+    }),
+
+    // Visa och markera elementet på raden i koden, eller det valda i trädet, i förhandsvisningen.
+    vscode.commands.registerCommand('mermaidTree.showInDiagram', (arg?: Item | vscode.Uri) => {
+      const item = arg && !(arg instanceof vscode.Uri) ? arg : undefined;
+      let target: Target | undefined;
+      if (item) {
+        const m = state.model;
+        if (item.kind === 'node') target = { kind: 'node', id: item.id };
+        else if (item.kind === 'subgraph') target = { kind: 'subgraph', id: item.id };
+        else if (item.kind === 'block' && m && isSequence(m)) {
+          const b = m.blocks.get(item.id)!;
+          target = { kind: 'block', id: b.section ? b.parent! : item.id };
+        } else if (item.kind === 'edge' && m) {
+          const edge = m.edges.find((x: FlowEdge) => x.key === item.key);
+          if (edge) target = { kind: 'edge', edge };
+        }
+      } else {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || !isMermaid(editor.document)) return;
+        const doc = editor.document;
+        const inCombined = state.doc !== undefined && combined.includes(state.doc.uri, doc.uri);
+        if (!inCombined) state.setDocument(doc);
+        const pos = editor.selection.active;
+        const found = targetAt(doc.getText(), parseDiagram(doc.getText()), pos.line, pos.character);
+        // I en källfil till en sammanslagen vy: samma pil i den sammanslagna modellen.
+        target = found?.kind === 'edge' && inCombined
+          ? (() => {
+            const edge = state.model?.edges.find((e: FlowEdge) => e.from === found.edge.from && e.to === found.edge.to && e.label === found.edge.label);
+            return edge ? { kind: 'edge' as const, edge } : undefined;
+          })()
+          : found;
+      }
+      if (!target || !state.model) {
+        void vscode.window.setStatusBarMessage('Nothing to show in the diagram here', 4000);
+        return;
+      }
+      const shown = resolveTarget(state.model, state.hidden, target);
+      if ('hidden' in shown) {
+        preview.clearSelection();
+        void vscode.window.showInformationMessage(`"${shown.hidden}" is hidden in the diagram.`);
+        return;
+      }
+      preview.show(shown);
     }),
 
     // Välj klassdiagram i arbetsytan och rita dem tillsammans.

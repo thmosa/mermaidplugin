@@ -1,10 +1,5 @@
 # Backlogg
 
-## Nya önskemål
-
-- **"Show in diagram"** i högerklicksmenyn på en rad i koden och på ett element i trädet: visa och markera elementet
-  i förhandsvisningen.
-
 ## Nya diagramtyper
 
 - **ER-diagram** (`erDiagram`): entiteter och relationer i trädet, namnbyte och varningar. Kan senare ingå i Combine.

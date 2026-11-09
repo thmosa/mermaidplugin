@@ -231,3 +231,42 @@ test('markering: varje grupp i exemplen hittas med sitt id', async () => {
     }
   }
 });
+
+// ---- Show in Diagram: VS Code säger vilken piltext som ska visas
+
+test('Show in Diagram: varje pil med text i exemplen hittar sin egen text i bilden', async () => {
+  const fs = require('node:fs');
+  const { parseDiagram } = require('../out/diagram');
+  const { resolveTarget } = require('../out/showInDiagram');
+  const { edgeAtClick } = require('../out/edgeClick');
+  for (const file of ['Test.mmd', 'class.mmd', 'demo.mmd', 'manufacturing.mmd', 'sequence.mmd', 'state.mmd']) {
+    const text = fs.readFileSync(path.join(__dirname, '..', 'samples', file), 'utf8');
+    const model = parseDiagram(text);
+    await draw({ text, fit: true });
+    const none = new Set();
+    let shown = 0;
+    for (const edge of model.edges) {
+      const target = resolveTarget(model, none, { kind: 'edge', edge });
+      if (target.kind !== 'edgeText') continue;
+      const hit = await page.evaluate(msg => new Promise(done => {
+        window.postMessage({ type: 'focusEdge', ...msg }, '*');
+        setTimeout(() => {
+          const texts = Labels.edgeTexts(window.__preview.svg);
+          done({ texts: texts.map(t => t.text), index: texts.findIndex(t => t.el.classList.contains('mm-selected')) });
+        }, 30);
+      }), target);
+      assert.ok(hit.index >= 0, `${file}: ${edge.key} markerades inte`);
+      assert.equal(edgeAtClick(model, none, hit.texts, hit.index)?.key, edge.key, file);
+      shown++;
+    }
+    assert.ok(shown > 0, `${file}: inga pilar med text`);
+  }
+});
+
+test('Show in Diagram: en piltext zoomas som en nod, inte till hela fönstret', async () => {
+  await draw({ text: FLOW, fit: true });
+  await page.evaluate(() => window.postMessage({ type: 'focusEdge', text: 'två', nth: 0 }, '*'));
+  await page.waitForTimeout(600);
+  assert.deepEqual(await highlighted(), ['två']);
+  assert.ok(await page.evaluate(() => window.__preview.view.s <= Math.max(Zoom.NODE_FOCUS_MAX, 1) + 1e-6));
+});

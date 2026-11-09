@@ -223,11 +223,19 @@
     return el;
   }
 
+  /** Platsen bland piltexterna: given direkt, eller nummer `nth` bland de med samma text. */
+  function edgeTextIndex({ index, text, nth }) {
+    if (index !== undefined) return index;
+    const same = Labels.edgeTexts(svg).flatMap((t, i) => t.text.replace(/\s+/g, ' ').trim() === text ? [i] : []);
+    return same.length ? same[Math.min(nth, same.length - 1)] : -1;
+  }
+
   function focusElement(kind, id) {
     selected = { kind, id };
     const el = highlight();
     if (!el || !view) return;
-    animateTo(Zoom.focus(view, size(), elementBox(el), kind));
+    // En piltext är liten: zooma som till en nod, inte så att den fyller fönstret.
+    animateTo(Zoom.focus(view, size(), elementBox(el), kind === 'edgeText' ? 'node' : kind));
   }
 
   // ------------------------------------------------------------ zoomen behålls vid omrendering
@@ -448,6 +456,10 @@
     }
     if (msg.type === 'focus') focusElement(msg.kind, msg.id);
     if (msg.type === 'clearSelection') { selected = null; highlight(); }
+    if (msg.type === 'focusEdge' && svg) {
+      const i = edgeTextIndex(msg);
+      if (i >= 0) focusElement('edgeText', i);
+    }
   });
 
   vscode.postMessage({ type: 'ready' });

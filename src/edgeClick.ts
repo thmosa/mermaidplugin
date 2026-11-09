@@ -18,7 +18,7 @@ export function labelText(s: string): string {
 const isSequence = (m: DiagramModel): m is SequenceModel => m.diagramType === 'sequenceDiagram';
 
 /** Kanterna som ritas, i kodens ordning. */
-function drawnEdges(model: DiagramModel, hidden: ReadonlySet<string>): FlowEdge[] {
+export function drawnEdges(model: DiagramModel, hidden: ReadonlySet<string>): FlowEdge[] {
   if (isSequence(model)) {
     const vis = visibility(model, hidden);
     return model.edges.filter(e => !vis.isEdgeHidden(e) && !blockSuppressor(model, hidden, model.edgeParent[e.index]));

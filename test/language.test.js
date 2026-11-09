@@ -198,3 +198,15 @@ test('inställningar: varje kontroll av namn går att stänga av, allt är på f
   }
   assert.match(src, /affectsConfiguration\('mermaidTree\.checks'\)/);
 });
+
+test('Show in Diagram: i editorns och trädets högerklicksmeny, inte för box', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
+  const id = 'mermaidTree.showInDiagram';
+  assert.equal(pkg.contributes.commands.find(c => c.command === id)?.title, 'Show in Diagram');
+  assert.match(pkg.contributes.menus['editor/context'].find(m => m.command === id)?.when ?? '', /resourceLangId == mermaid/);
+  const when = pkg.contributes.menus['view/item/context'].find(m => m.command === id)?.when ?? '';
+  for (const kind of ['node', 'edge', 'subgraph', 'block', 'section']) assert.ok(new RegExp(`\\b${kind}\\b`).test(when), kind);
+  assert.ok(!/\bbox\b/.test(when));
+  assert.ok(src.includes(`registerCommand('${id}'`));
+});

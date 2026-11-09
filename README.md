@@ -38,6 +38,9 @@ Other diagram types are shown in the preview but have no tree yet.
   collapsed follows the new name.
 - **Export** the whole diagram from the preview's toolbar as **SVG** or **PNG** (twice the natural size),
   as it is shown: with hidden parts left out, collapsed groups and the preview's background.
+- **Show in Diagram** (right-click a line in the code or an item in the tree): opens the preview and zooms to
+  the element. On a line, the name under the cursor comes first, otherwise what the line is about. If the element
+  is hidden you are told so and nothing is highlighted; inside a collapsed group the group is shown.
 - **Combine Class Diagrams…** (Command Palette or the editor's context menu in a class diagram): choose two or
   more class diagrams and see them drawn as one. Classes with the same name become one class, so relations
   connect across the files. Members and relations that appear in several files are shown once, and different
