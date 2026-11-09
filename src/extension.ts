@@ -11,6 +11,7 @@ import { edgeAtClick } from './edgeClick';
 import { HiddenStore } from './hiddenStore';
 import { NamingStyle, namingIssues, fixAll } from './naming';
 import { lookalikeIssues } from './lookalike';
+import { MergeConflict, MergeResult, mergeClassDiagrams } from './mergeClass';
 import { participantAt, participantChoices, participantCompletion } from './participant';
 import { LEGEND, semanticTokens } from './semantic';
 
@@ -19,6 +20,63 @@ const SEMANTIC_LEGEND = new vscode.SemanticTokensLegend(LEGEND.tokenTypes, LEGEN
 
 function isMermaid(doc: vscode.TextDocument): boolean {
   return doc.languageId === 'mermaid' || /\.(mmd|mermaid)$/i.test(doc.fileName);
+}
+
+// ---------------------------------------------------------------- flera klassdiagram tillsammans
+
+const COMBINED_SCHEME = 'mermaid-combined';
+const READ_ONLY = 'A combined view is read-only. Change the names in the source files.';
+
+/** Skrivskyddade dokument med flera klassdiagram ihopslagna. Källfilerna står i adressen. */
+class CombinedViews implements vscode.TextDocumentContentProvider {
+  private readonly changed = new vscode.EventEmitter<vscode.Uri>();
+  readonly onDidChange = this.changed.event;
+  private readonly open = new Map<string, { uri: vscode.Uri; files: vscode.Uri[]; merge: MergeResult }>();
+
+  static uriFor(files: vscode.Uri[]): vscode.Uri {
+    const sorted = [...files].sort((a, b) => a.path.localeCompare(b.path));
+    const names = sorted.map(f => f.path.slice(f.path.lastIndexOf('/') + 1).replace(/\.[^.]+$/, ''));
+    const shown = names.length > 3 ? `${names.slice(0, 3).join(' + ')} + ${names.length - 3} more` : names.join(' + ');
+    return vscode.Uri.from({ scheme: COMBINED_SCHEME, path: `/${shown}.mmd`, query: JSON.stringify(sorted.map(String)) });
+  }
+
+  async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
+    const files = (JSON.parse(uri.query) as string[]).map(s => vscode.Uri.parse(s));
+    let merge: MergeResult;
+    try {
+      const docs = await Promise.all(files.map(f => vscode.workspace.openTextDocument(f)));
+      merge = mergeClassDiagrams(docs.map(d => ({ name: vscode.workspace.asRelativePath(d.uri), text: d.getText() })));
+    } catch (e) {
+      merge = { text: '', sources: [], conflicts: [], error: String((e as Error).message) };
+    }
+    this.open.set(uri.toString(), { uri, files, merge });
+    return merge.error ? `%% ${merge.error}` : merge.text;
+  }
+
+  /** Filen och raden som en rad i vyn kommer från. */
+  source(uri: vscode.Uri, line: number): { file: vscode.Uri; line: number } | undefined {
+    const view = this.open.get(uri.toString());
+    const src = view?.merge.sources[line];
+    return view && src ? { file: view.files[src.file], line: src.line } : undefined;
+  }
+
+  conflicts(uri: vscode.Uri): MergeConflict[] {
+    return this.open.get(uri.toString())?.merge.conflicts ?? [];
+  }
+
+  /** Om filen ingår i vyn. */
+  includes(uri: vscode.Uri, file: vscode.Uri): boolean {
+    return this.open.get(uri.toString())?.files.some(f => f.toString() === file.toString()) ?? false;
+  }
+
+  /** En källfil har ändrats: rita om vyerna den ingår i. */
+  sourceChanged(file: vscode.Uri) {
+    for (const v of this.open.values()) if (this.includes(v.uri, file)) this.changed.fire(v.uri);
+  }
+
+  closed(uri: vscode.Uri) {
+    this.open.delete(uri.toString());
+  }
 }
 
 // ---------------------------------------------------------------- tillstånd
@@ -348,7 +406,8 @@ class Preview {
 
   update() {
     if (!this.panel || !this.ready || !this.state.doc) return;
-    this.panel.title = `Preview: ${vscode.workspace.asRelativePath(this.state.doc.uri)}`;
+    const docUri = this.state.doc.uri;
+    this.panel.title = `Preview: ${docUri.scheme === COMBINED_SCHEME ? docUri.path.slice(1) : vscode.workspace.asRelativePath(docUri)}`;
     const cfg = vscode.workspace.getConfiguration('mermaidTree.preview');
     const theme = { theme: cfg.get<string>('theme', 'auto'), themeVariables: cfg.get<Record<string, unknown>>('themeVariables', {}) };
     // En annan fil än förra gången: visa hela diagrammet (Fit) i stället för att behålla zoomen.
@@ -444,8 +503,25 @@ export function activate(ctx: vscode.ExtensionContext) {
     treeDataProvider: tree, manageCheckboxStateManually: true, showCollapseAll: true,
   });
 
+  const combined = new CombinedViews();
+
+  /** Från en sammanslagen vy: visa raden i filen den kommer från, i samma editorgrupp som vyn. */
+  const revealSource = async (src: { file: vscode.Uri; line: number }, column: vscode.ViewColumn | undefined) => {
+    const doc = await vscode.workspace.openTextDocument(src.file);
+    const editor = await vscode.window.showTextDocument(doc, { preserveFocus: true, preview: true, viewColumn: column ?? vscode.ViewColumn.One });
+    const range = doc.lineAt(src.line).range;
+    editor.selection = new vscode.Selection(range.start, range.start);
+    editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+  };
+
   const revealLine = (line: number) => {
     const editor = vscode.window.visibleTextEditors.find(e => e.document === state.doc);
+    if (state.doc?.uri.scheme === COMBINED_SCHEME) {
+      const src = combined.source(state.doc.uri, line);
+      const files = vscode.window.visibleTextEditors.find(e => state.doc && combined.includes(state.doc.uri, e.document.uri));
+      if (src) void revealSource(src, (editor ?? files)?.viewColumn);
+      return;
+    }
     if (!editor) return;
     const range = editor.document.lineAt(line).range;
     editor.selection = new vscode.Selection(range.start, range.start);
@@ -515,6 +591,13 @@ export function activate(ctx: vscode.ExtensionContext) {
         found.push(d);
       }
     }
+    // Krockar mellan filerna i en sammanslagen vy.
+    for (const c of combined.conflicts(doc.uri)) {
+      const line = doc.lineAt(c.line);
+      const d = toDiagnostic({ line: c.line, start: line.firstNonWhitespaceCharacterIndex, end: line.text.length, message: c.message }, 'Mermaid Tree');
+      d.severity = vscode.DiagnosticSeverity.Warning;
+      found.push(d);
+    }
     let err = null;
     try { err = await checkSyntax(text); } catch { /* Mermaid kunde inte laddas; visa bara våra egna fel */ }
     // En nyare version av texten hann komma medan Mermaid tolkade; den uppdaterar själv.
@@ -531,6 +614,8 @@ export function activate(ctx: vscode.ExtensionContext) {
   state.onDidChange(() => { view.description = state.model?.diagramType || undefined; });
   // Change Participant visas bara i sequence diagram.
   state.onDidChange(() => void vscode.commands.executeCommand('setContext', 'mermaidTree.sequence', state.model?.diagramType === 'sequenceDiagram'));
+  // Combine Class Diagrams visas i högerklicksmenyn bara i klassdiagram.
+  state.onDidChange(() => void vscode.commands.executeCommand('setContext', 'mermaidTree.classDiagram', /^classDiagram/.test(state.model?.diagramType ?? '')));
 
   // Sökning i trädet: filtrerar medan man skriver. Filtret ligger kvar när rutan stängs (även när man
   // klickar i trädet) och tas bort med Clear Search eller en tom sökning.
@@ -546,7 +631,10 @@ export function activate(ctx: vscode.ExtensionContext) {
   state.onDidChange(showSearch);
 
   const track = (editor: vscode.TextEditor | undefined) => {
-    if (editor && isMermaid(editor.document)) state.setDocument(editor.document);
+    if (!editor || !isMermaid(editor.document)) return;
+    // Ett klick i en sammanslagen vy öppnar källfilen; vyn ska ligga kvar i trädet och förhandsvisningen.
+    if (state.doc && combined.includes(state.doc.uri, editor.document.uri)) return;
+    state.setDocument(editor.document);
   };
   track(vscode.window.activeTextEditor);
 
@@ -562,9 +650,21 @@ export function activate(ctx: vscode.ExtensionContext) {
       const open = new Set(vscode.window.tabGroups.all.flatMap(g => g.tabs.map(uriOf)));
       for (const t of e.closed) {
         const uri = uriOf(t);
-        if (uri && !open.has(uri)) state.closed(vscode.Uri.parse(uri));
+        if (!uri || open.has(uri)) continue;
+        const closed = vscode.Uri.parse(uri);
+        state.closed(closed);
+        // Den sammanslagna vyn är stängd: en källfil får visas för sig själv igen.
+        if (closed.scheme === COMBINED_SCHEME) { combined.closed(closed); track(vscode.window.activeTextEditor); }
       }
     }),
+    vscode.workspace.registerTextDocumentContentProvider(COMBINED_SCHEME, combined),
+    vscode.workspace.onDidChangeTextDocument(e => combined.sourceChanged(e.document.uri)),
+    // Filer som ändras utanför VS Code (till exempel git pull).
+    (() => {
+      const watcher = vscode.workspace.createFileSystemWatcher('**/*.{mmd,mermaid}');
+      watcher.onDidChange(uri => combined.sourceChanged(uri));
+      return watcher;
+    })(),
     vscode.window.onDidChangeActiveTextEditor(track),
     vscode.workspace.onDidChangeTextDocument(e => {
       if (e.document !== state.doc) return;
@@ -650,9 +750,40 @@ export function activate(ctx: vscode.ExtensionContext) {
       if (target?.kind === 'subgraph' || target?.kind === 'block') { state.setCollapsed(target.id, false); preview.focus(target.kind, target.id); }
     }),
 
+    // Välj klassdiagram i arbetsytan och rita dem tillsammans.
+    vscode.commands.registerCommand('mermaidTree.combineClassDiagrams', async () => {
+      const found = await vscode.workspace.findFiles('**/*.{mmd,mermaid}', '**/node_modules/**', 1000);
+      const uris = new Map(found.map(u => [u.toString(), u]));
+      for (const d of vscode.workspace.textDocuments) if (d.uri.scheme === 'file' && isMermaid(d)) uris.set(d.uri.toString(), d.uri);
+      const classes: vscode.Uri[] = [];
+      for (const uri of uris.values()) {
+        const open = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString());
+        const text = open ? open.getText() : new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+        if (/^classDiagram/.test(parseDiagram(text).diagramType)) classes.push(uri);
+      }
+      if (classes.length < 2) {
+        void vscode.window.showInformationMessage('Combining needs at least two class diagrams in this workspace.');
+        return;
+      }
+      const active = vscode.window.activeTextEditor?.document.uri.toString();
+      const items = classes
+        .map(uri => ({ label: vscode.workspace.asRelativePath(uri), picked: uri.toString() === active, uri }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+      const picked = await vscode.window.showQuickPick(items, { canPickMany: true, title: 'Combine Class Diagrams', placeHolder: 'Choose the class diagrams to draw together' });
+      if (!picked) return;
+      if (picked.length < 2) {
+        void vscode.window.showInformationMessage('Choose at least two class diagrams to combine.');
+        return;
+      }
+      const doc = await vscode.workspace.openTextDocument(CombinedViews.uriFor(picked.map(p => p.uri)));
+      await vscode.window.showTextDocument(doc, { preview: false });
+      await vscode.commands.executeCommand('mermaidTree.openPreview', doc.uri);
+    }),
+
     // Byt namn (F2 och Rename Symbol i editorns högerklicksmeny).
     vscode.languages.registerRenameProvider({ language: 'mermaid' }, {
       prepareRename(doc, pos) {
+        if (doc.uri.scheme === COMBINED_SCHEME) throw new Error(READ_ONLY);
         const hit = idAt(doc.getText(), parseDiagram(doc.getText()), pos.line, pos.character);
         if (!hit) throw new Error('Place the cursor on the name of a node, state, participant, class or group to rename it.');
         const range = new vscode.Range(hit.line, hit.start, hit.line, hit.end);
@@ -670,6 +801,7 @@ export function activate(ctx: vscode.ExtensionContext) {
     // så att dolt och hopfällt flyttas till de nya namnen först när man faktiskt väljer fixen.
     vscode.languages.registerCodeActionsProvider({ language: 'mermaid' }, {
       provideCodeActions(doc, _range, context) {
+        if (doc.uri.scheme === COMBINED_SCHEME) return [];
         const style = namingStyle();
         // Rätta allt, till exempel vid sparning med editor.codeActionsOnSave.
         if (context.only && FIX_ALL.intersects(context.only)) {
@@ -856,6 +988,7 @@ export function activate(ctx: vscode.ExtensionContext) {
 
   /** Ändringarna för ett namnbyte. Det som är dolt och hopfällt följer med till det nya namnet. */
   function renameEdit(doc: vscode.TextDocument, m: AnyModel, id: string, newName: string): vscode.WorkspaceEdit {
+    if (doc.uri.scheme === COMBINED_SCHEME) throw new Error(READ_ONLY);
     const r = rename(doc.getText(), m, id, newName);
     if (r.error !== undefined) throw new Error(r.error);
     const edit = new vscode.WorkspaceEdit();

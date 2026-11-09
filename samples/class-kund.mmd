@@ -1,0 +1,18 @@
+classDiagram
+  %% Prova Combine Class Diagrams tillsammans med class.mmd: Kund och Order är samma klasser
+  direction TB
+  class Kund["Kund (privat)"] {
+    +String namn
+    +String epost
+  }
+  class Order {
+    +String id
+    +Date datum
+  }
+  class Adress {
+    +String gata
+    +String ort
+  }
+  Kund "1" --> "*" Order : beställer
+  Kund "1" --> "1..*" Adress : bor på
+  Order --> Adress : levereras till

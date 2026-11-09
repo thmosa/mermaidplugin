@@ -1,6 +1,6 @@
 // Kontrakt för kantetiketter mot riktiga Mermaid. Mermaid räknar ut storleken på ett
 // sammansatt tillstånd utan etikettens utfyllnad, så en bred etikett vid kanten sticker ut
-// (se samples/largeclass.mmd, W4). Labels.fitClusters gör gruppen större i stället, så att
+// (se samples/LargeState.mmd, W4). Labels.fitClusters gör gruppen större i stället, så att
 // etiketterna ligger kvar på sina pilar.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -10,7 +10,7 @@ const { launch } = require('./support/mermaid-browser');
 
 const MERMAID_JS = path.join(__dirname, '..', 'node_modules', 'mermaid', 'dist', 'mermaid.min.js');
 const LABELS_JS = path.join(__dirname, '..', 'media', 'labels.js');
-const LARGE = fs.readFileSync(path.join(__dirname, '..', 'samples', 'largeclass.mmd'), 'utf8');
+const LARGE = fs.readFileSync(path.join(__dirname, '..', 'samples', 'LargeState.mmd'), 'utf8');
 
 let browser, page;
 test.before(async () => {

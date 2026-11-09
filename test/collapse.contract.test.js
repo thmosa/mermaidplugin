@@ -53,7 +53,7 @@ async function assertMatches(model, hidden, label) {
   assert.deepEqual(clusterIds(r), want.clusters, `${label}: grupper`);
 }
 
-// Stora exempel (som largeclass.mmd) körs bara i grundtesterna. Kombinationerna blir hundratals
+// Stora exempel (som LargeState.mmd) körs bara i grundtesterna. Kombinationerna blir hundratals
 // renderingar på nästan en sekund var, och de mindre exemplen täcker samma regler.
 const LARGE = 40;
 const combos = model => model.nodes.size > LARGE ? { skip: `stort exempel (${model.nodes.size} noder), bara grundtesterna` } : {};

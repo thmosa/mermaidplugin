@@ -176,6 +176,11 @@
         "category": "Mermaid Tree"
       },
       {
+        "command": "mermaidTree.combineClassDiagrams",
+        "title": "Combine Class Diagrams…",
+        "category": "Mermaid Tree"
+      },
+      {
         "command": "mermaidTree.openSettings",
         "title": "Settings",
         "category": "Mermaid Tree",
@@ -223,6 +228,11 @@
           "command": "mermaidTree.showTree",
           "when": "resourceLangId == mermaid",
           "group": "mermaid@2"
+        },
+        {
+          "command": "mermaidTree.combineClassDiagrams",
+          "when": "resourceLangId == mermaid && mermaidTree.classDiagram",
+          "group": "mermaid@3"
         },
         {
           "command": "mermaidTree.changeParticipant",
@@ -355,8 +365,8 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "tsc -p . && node --test test/*.test.js",
-    "test:unit": "tsc -p . && node --test test/parser.test.js test/state.test.js test/zoom.test.js test/labels.test.js test/language.test.js test/diagnostics.test.js test/tree.test.js test/syntax.test.js test/collapse.test.js test/sequence.test.js test/class.test.js test/rename.test.js test/rename.property.test.js test/edgeClick.test.js test/hiddenStore.test.js test/naming.test.js test/participant.test.js test/completion.test.js test/grammar.test.js test/semantic.test.js test/lookalike.test.js",
-    "test:contract": "tsc -p . && node --test test/mermaid.contract.test.js test/state.contract.test.js test/mermaid.parse.test.js test/collapse.contract.test.js test/sequence.contract.test.js test/class.contract.test.js test/export.contract.test.js test/preview.contract.test.js test/labels.contract.test.js test/edgeClick.contract.test.js test/naming.contract.test.js test/participant.contract.test.js test/lookalike.contract.test.js",
+    "test:unit": "tsc -p . && node --test test/parser.test.js test/state.test.js test/zoom.test.js test/labels.test.js test/language.test.js test/diagnostics.test.js test/tree.test.js test/syntax.test.js test/collapse.test.js test/sequence.test.js test/class.test.js test/rename.test.js test/rename.property.test.js test/edgeClick.test.js test/hiddenStore.test.js test/naming.test.js test/participant.test.js test/completion.test.js test/grammar.test.js test/semantic.test.js test/lookalike.test.js test/mergeClass.test.js",
+    "test:contract": "tsc -p . && node --test test/mermaid.contract.test.js test/state.contract.test.js test/mermaid.parse.test.js test/collapse.contract.test.js test/sequence.contract.test.js test/class.contract.test.js test/export.contract.test.js test/preview.contract.test.js test/labels.contract.test.js test/edgeClick.contract.test.js test/naming.contract.test.js test/participant.contract.test.js test/lookalike.contract.test.js test/mergeClass.contract.test.js",
     "package": "tsc -p . && vsce package"
   },
   "dependencies": {

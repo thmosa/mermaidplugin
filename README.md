@@ -38,6 +38,11 @@ Other diagram types are shown in the preview but have no tree yet.
   collapsed follows the new name.
 - **Export** the whole diagram from the preview's toolbar as **SVG** or **PNG** (twice the natural size),
   as it is shown: with hidden parts left out, collapsed groups and the preview's background.
+- **Combine Class Diagrams…** (Command Palette or the editor's context menu in a class diagram): choose two or
+  more class diagrams and see them drawn as one. Classes with the same name become one class, so relations
+  connect across the files. Members and relations that appear in several files are shown once, and different
+  labels, namespaces or directions get a warning. The combined view is read-only and follows the files as
+  you edit them; clicking something opens the right file and line. Close its tab to go back to single files.
 - **Errors in the editor**: Mermaid's own syntax errors on the right line, and ids that differ only in
   letter case (Mermaid treats `Order` and `order` as different).
 - **Look-alike letters**: a warning on names with Cyrillic or Greek letters that look Latin, or full-width

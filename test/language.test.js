@@ -173,3 +173,15 @@ test('inställningar: tema och temafärger för förhandsvisningen, auto som sta
   assert.match(src, /type: 'render'[^\n]*theme/);
   assert.match(src, /affectsConfiguration\('mermaidTree\.preview'\)/);
 });
+
+test('kombinera klassdiagram: kommando i paletten och i högerklicksmenyn för klassdiagram, skrivskyddad vy', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
+  const id = 'mermaidTree.combineClassDiagrams';
+  assert.equal(pkg.contributes.commands.find(c => c.command === id)?.title, 'Combine Class Diagrams…');
+  assert.match(pkg.contributes.menus['editor/context'].find(m => m.command === id)?.when ?? '', /mermaidTree\.classDiagram/);
+  assert.ok(src.includes(`registerCommand('${id}'`));
+  assert.match(src, /setContext', 'mermaidTree\.classDiagram'/);
+  // Vyn är ett skrivskyddat dokument från en innehållsleverantör: källfilerna ändras aldrig härifrån.
+  assert.match(src, /registerTextDocumentContentProvider\(COMBINED_SCHEME/);
+});

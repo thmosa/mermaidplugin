@@ -60,8 +60,8 @@ stateDiagram-v2
         [*] --> W3_Wait: init
         W3_Wait --> W3_F1: send email
         W3_F1 --> W3_Wait: email sent via SendGrid with template rendering and tracking pixel injection
-        W3_Wait --> W3_F2: bounce
-        W3_F2 --> W3_Wait: bounced
+        W3_Wait --> W3F2: bounce
+        W3F2 --> W3_Wait: bounced
         W3_Wait --> W3_F3: on complaint
         W3_F3 --> W3_Wait: suppressed
         W3_Wait --> W3_F4: retry queue
@@ -110,7 +110,7 @@ stateDiagram-v2
         W6_Wait --> W6_F4: error
         W6_F4 --> W6_Wait: logged
     }
-
+W6_F2 --> W7_Wait: trigger analytics worker for cohort analysis and retention metrics
     %% ========== WORKER 7 ==========
     state W7 {
         [*] --> W7_Wait: init cache worker

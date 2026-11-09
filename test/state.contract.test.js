@@ -97,7 +97,7 @@ async function assertMatches(model, hidden, label) {
   assert.deepEqual(clusterIds(r), want.clusters, `${label}: sammansatta tillstånd`);
 }
 
-// Stora exempel (som largeclass.mmd) körs bara i grundtesterna. Kombinationerna blir hundratals
+// Stora exempel (som LargeState.mmd) körs bara i grundtesterna. Kombinationerna blir hundratals
 // renderingar på nästan en sekund var, och de mindre exemplen täcker samma regler.
 const LARGE = 40;
 const combos = model => model.nodes.size > LARGE ? { skip: `stort exempel (${model.nodes.size} noder), bara grundtesterna` } : {};
@@ -198,8 +198,8 @@ test('inlärning state: nämns tillståndet i två sammansatta tillstånd hamnar
   assert.deepEqual(parsedMembership(text), drawn);
 });
 
-test('kontrakt state: trädets grupper stämmer med det ritade i largeclass.mmd', async () => {
-  const text = fs.readFileSync(path.join(__dirname, '..', 'samples', 'largeclass.mmd'), 'utf8');
+test('kontrakt state: trädets grupper stämmer med det ritade i LargeState.mmd', async () => {
+  const text = fs.readFileSync(path.join(__dirname, '..', 'samples', 'LargeState.mmd'), 'utf8');
   const drawn = await drawnMembership(text);
   const parsed = parsedMembership(text);
   assert.deepEqual(Object.fromEntries(Object.keys(drawn).map(id => [id, parsed[id]])), drawn);
