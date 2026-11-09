@@ -91,6 +91,21 @@
           ],
           "default": "off",
           "description": "Warn about names (nodes, states, participants, classes, groups) that do not follow this style, with a quick fix that renames every use."
+        },
+        "mermaidTree.checks.letterCase": {
+          "type": "boolean",
+          "default": true,
+          "description": "Mark names that differ only in letter case, such as Order and order."
+        },
+        "mermaidTree.checks.similarNames": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn about names that differ only in word separation, such as orderplanned and order_planned, with a quick fix that uses one of them everywhere."
+        },
+        "mermaidTree.checks.lookalikeLetters": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn about names with Cyrillic, Greek or full-width letters that look like Latin ones, with a quick fix that uses Latin letters."
         }
       }
     },
@@ -163,6 +178,11 @@
       {
         "command": "mermaidTree.fixLookalike",
         "title": "Use Latin Letters",
+        "category": "Mermaid Tree"
+      },
+      {
+        "command": "mermaidTree.useName",
+        "title": "Use Other Name",
         "category": "Mermaid Tree"
       },
       {
@@ -332,6 +352,10 @@
         },
         {
           "command": "mermaidTree.fixLookalike",
+          "when": "false"
+        },
+        {
+          "command": "mermaidTree.useName",
           "when": "false"
         },
         {

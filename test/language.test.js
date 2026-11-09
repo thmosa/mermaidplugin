@@ -185,3 +185,16 @@ test('kombinera klassdiagram: kommando i paletten och i högerklicksmenyn för k
   // Vyn är ett skrivskyddat dokument från en innehållsleverantör: källfilerna ändras aldrig härifrån.
   assert.match(src, /registerTextDocumentContentProvider\(COMBINED_SCHEME/);
 });
+
+test('inställningar: varje kontroll av namn går att stänga av, allt är på från början', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const props = pkg.contributes.configuration.properties;
+  const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
+  for (const name of ['letterCase', 'lookalikeLetters', 'similarNames']) {
+    const p = props[`mermaidTree.checks.${name}`];
+    assert.equal(p?.type, 'boolean', name);
+    assert.equal(p.default, true, name);
+    assert.ok(src.includes(`check('${name}')`), name);
+  }
+  assert.match(src, /affectsConfiguration\('mermaidTree\.checks'\)/);
+});

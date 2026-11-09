@@ -62,6 +62,43 @@ export function namingIssues(text: string, model: DiagramModel, style: NamingSty
   return out.sort((a, b) => a.line - b.line || a.start - b.start);
 }
 
+export interface SimilarName {
+  id: string;
+  /** Andra namn som bara skiljer sig i ordindelning. */
+  similar: string[];
+  /** 0-baserad rad och kolumner [start, end) där namnet definieras. */
+  line: number;
+  start: number;
+  end: number;
+  message: string;
+}
+
+const wordless = (id: string) => id.toLowerCase().replace(/[_-]/g, '');
+
+/**
+ * Namn som bara skiljer sig i ordindelning (orderplanned och order_planned). Stilregeln kan inte se det:
+ * ett ord utan avskiljare är giltigt i alla stilar. Bara skillnad i stora och små bokstäver har en egen
+ * varning, och ett namn som stilregeln redan varnar för varnas inte två gånger.
+ */
+export function similarNames(text: string, model: DiagramModel, style: NamingStyle): SimilarName[] {
+  if (!model.supported) return [];
+  const ids = renamable(model).filter(id => !(isClass(model) && model.subgraphs.has(id)));
+  const flagged = new Set(namingIssues(text, model, style).map(i => i.id));
+  const out: SimilarName[] = [];
+  for (const id of ids) {
+    if (flagged.has(id)) continue;
+    const similar = ids.filter(x => wordless(x) === wordless(id) && x.toLowerCase() !== id.toLowerCase());
+    if (!similar.length) continue;
+    const defLine = model.nodes.get(id)?.line ?? model.subgraphs.get(id)?.line;
+    const uses = occurrences(text, model, id);
+    const at = uses.find(o => o.line === defLine) ?? uses[0];
+    if (!at) continue;
+    const names = similar.map(x => `"${x}"`).join(', ');
+    out.push({ id, similar, line: at.line, start: at.start, end: at.end, message: `"${id}" differs only in word separation from ${names}. Mermaid treats them as different names.` });
+  }
+  return out.sort((a, b) => a.line - b.line || a.start - b.start);
+}
+
 /** Byter namn på varje namn som går att rätta. Ger nya texten och bytena [gammalt id, nytt id]. */
 export function fixAll(text: string, style: NamingStyle): { text: string; renamed: [string, string][] } {
   const renamed: [string, string][] = [];

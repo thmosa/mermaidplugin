@@ -153,3 +153,81 @@ test('förhandsvisning: en ny fil anpassas till fönstret (Fit), samma fil behå
   await page.waitForTimeout(400);
   assert.ok(Math.abs(await page.evaluate(() => window.__preview.view.s) - s) < 1e-3, 'ska vara som Fit');
 });
+
+// ---- markeringen: bara det som faktiskt är valt ska lysa, aldrig något annat efter att något döljs
+
+const highlighted = () => page.evaluate(() => [...document.querySelectorAll('#stage svg .mm-selected')].map(e => e.textContent.trim()));
+
+async function clickEdgeText(text) {
+  const box = await page.evaluate(text => {
+    const g = [...document.querySelectorAll('#stage svg g.edgeLabel')].find(e => e.textContent.trim() === text);
+    const r = g.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }, text);
+  await page.mouse.click(box.x, box.y);
+}
+
+const FLOW = 'flowchart LR\n  A -->|ett| B\n  B -->|två| C\n  C -->|tre| D';
+
+test('markering: en vald piltext som döljs lämnar ingen markering på nästa pil', async () => {
+  await draw({ text: FLOW, fit: true });
+  await clickEdgeText('två');
+  assert.deepEqual(await highlighted(), ['två']);
+  await draw({ text: 'flowchart LR\n  A -->|ett| B\n  C -->|tre| D\n  B\n  C' });
+  assert.deepEqual(await highlighted(), []);
+});
+
+test('markering: när något före den valda piltexten döljs lyser ingen annan pil', async () => {
+  await draw({ text: FLOW, fit: true });
+  await clickEdgeText('två');
+  await draw({ text: 'flowchart LR\n  B -->|två| C\n  C -->|tre| D' });
+  assert.ok(!(await highlighted()).includes('tre'));
+});
+
+test('markering: piltexten är kvar när diagrammet ritas om med samma piltexter', async () => {
+  await draw({ text: FLOW, fit: true });
+  await clickEdgeText('två');
+  await draw({ text: `${FLOW}\n  D --> E` });
+  assert.deepEqual(await highlighted(), ['två']);
+});
+
+test('markering: en vald nod som döljs lämnar ingen markering', async () => {
+  await draw({ text: 'flowchart LR\n  A --> B\n  B --> C', fit: true });
+  await page.evaluate(() => window.postMessage({ type: 'focus', kind: 'node', id: 'B' }, '*'));
+  await page.waitForFunction(() => document.querySelector('#stage svg .mm-selected'));
+  await draw({ text: 'flowchart LR\n  A\n  C' });
+  assert.deepEqual(await highlighted(), []);
+});
+
+test('markering: en dold grupp förväxlas inte med en grupp vars id slutar likadant', async () => {
+  await draw({ text: 'flowchart LR\n  subgraph Bar-Foo\n    A\n  end\n  subgraph Foo\n    B\n  end', fit: true });
+  await draw({ text: 'flowchart LR\n  subgraph Bar-Foo\n    A\n  end\n  B' });
+  await page.evaluate(() => window.postMessage({ type: 'focus', kind: 'subgraph', id: 'Foo' }, '*'));
+  await page.waitForTimeout(200);
+  assert.deepEqual(await highlighted(), []);
+});
+
+test('markering: att välja något dolt i trädet tar bort den gamla markeringen', async () => {
+  await draw({ text: 'flowchart LR\n  A --> B', fit: true });
+  await page.evaluate(() => window.postMessage({ type: 'focus', kind: 'node', id: 'A' }, '*'));
+  await page.waitForFunction(() => document.querySelector('#stage svg .mm-selected'));
+  await page.evaluate(() => window.postMessage({ type: 'focus', kind: 'node', id: 'Finnsinte' }, '*'));
+  await page.waitForFunction(() => !document.querySelector('#stage svg .mm-selected'));
+  // En pil i trädet har ingen egen markering i bilden.
+  await page.evaluate(() => window.postMessage({ type: 'focus', kind: 'node', id: 'A' }, '*'));
+  await page.waitForFunction(() => document.querySelector('#stage svg .mm-selected'));
+  await page.evaluate(() => window.postMessage({ type: 'clearSelection' }, '*'));
+  await page.waitForFunction(() => !document.querySelector('#stage svg .mm-selected'), null, { timeout: 2000 });
+});
+
+test('markering: varje grupp i exemplen hittas med sitt id', async () => {
+  const fs = require('node:fs');
+  for (const file of ['class.mmd', 'demo.mmd', 'state.mmd']) {
+    const text = fs.readFileSync(path.join(__dirname, '..', 'samples', file), 'utf8');
+    await draw({ text, fit: true });
+    const { parseDiagram } = require('../out/diagram');
+    for (const id of parseDiagram(text).subgraphs.keys()) {
+      assert.ok(await page.evaluate(id => !!window.__preview.findElement('subgraph', id), id), `${file}: ${id}`);
+    }
+  }
+});

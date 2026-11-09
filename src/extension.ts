@@ -6,10 +6,10 @@ import { caseConflicts } from './diagnostics';
 import { checkSyntax } from './mermaidCheck';
 import { syntaxDiagnostic } from './syntax';
 import { Item, children, parentOf, initialState, countMatches } from './tree';
-import { idAt, rename, renameKeys, renamedId } from './rename';
+import { idAt, occurrences, rename, renameKeys, renamedId } from './rename';
 import { edgeAtClick } from './edgeClick';
 import { HiddenStore } from './hiddenStore';
-import { NamingStyle, namingIssues, fixAll } from './naming';
+import { NamingStyle, namingIssues, fixAll, similarNames } from './naming';
 import { lookalikeIssues } from './lookalike';
 import { MergeConflict, MergeResult, mergeClassDiagrams } from './mergeClass';
 import { participantAt, participantChoices, participantCompletion } from './participant';
@@ -404,6 +404,11 @@ class Preview {
     if (this.ready) void this.panel?.webview.postMessage({ type: 'focus', kind, id });
   }
 
+  /** Inget i bilden är valt längre. */
+  clearSelection() {
+    if (this.ready) void this.panel?.webview.postMessage({ type: 'clearSelection' });
+  }
+
   update() {
     if (!this.panel || !this.ready || !this.state.doc) return;
     const docUri = this.state.doc.uri;
@@ -528,6 +533,9 @@ export function activate(ctx: vscode.ExtensionContext) {
     editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
   };
 
+  /** Pilen vars text just klickades i bilden, medan trädet väljer den. */
+  let edgeFromPreview: string | undefined;
+
   const preview = new Preview(ctx, state, (clickedKind, clickedId, toggle, branch) => {
     // Klick på blockets titel gäller huvudgrenen när blocket har fler grenar.
     const m0 = state.model;
@@ -554,12 +562,16 @@ export function activate(ctx: vscode.ExtensionContext) {
     const m = state.model;
     const edge = m && edgeAtClick(m, state.hidden, texts, index);
     if (!edge) return;
+    edgeFromPreview = edge.key;
     void view.reveal(tree.item({ kind: 'edge', key: edge.key }), { select: true, focus: false });
     revealLine(edge.line);
   });
 
   const NAMING = 'naming';
   const LOOKALIKE = 'lookalike';
+  const SIMILAR = 'similar';
+  /** Om en kontroll av namn är påslagen i inställningarna. */
+  const check = (name: string) => vscode.workspace.getConfiguration('mermaidTree.checks').get<boolean>(name, true);
   const FIX_ALL = vscode.CodeActionKind.SourceFixAll.append('mermaidTree');
   const namingStyle = () => vscode.workspace.getConfiguration('mermaidTree').get<NamingStyle>('namingStyle', 'off');
 
@@ -576,14 +588,22 @@ export function activate(ctx: vscode.ExtensionContext) {
     if (!doc || !m) return;
     const version = doc.version;
     const text = doc.getText();
-    const found = caseConflicts(text, m).map(c => toDiagnostic(c, 'Mermaid Tree'));
+    const found = (check('letterCase') ? caseConflicts(text, m) : []).map(c => toDiagnostic(c, 'Mermaid Tree'));
+    if (check('similarNames')) {
+      for (const issue of similarNames(text, m, namingStyle())) {
+        const d = toDiagnostic(issue, 'Mermaid Tree');
+        d.severity = vscode.DiagnosticSeverity.Warning;
+        d.code = SIMILAR;
+        found.push(d);
+      }
+    }
     for (const issue of namingIssues(text, m, namingStyle())) {
       const d = toDiagnostic(issue, 'Mermaid Tree');
       d.severity = vscode.DiagnosticSeverity.Warning;
       d.code = NAMING;
       found.push(d);
     }
-    for (const issue of lookalikeIssues(text, m)) {
+    for (const issue of check('lookalikeLetters') ? lookalikeIssues(text, m) : []) {
       for (const r of issue.ranges) {
         const d = toDiagnostic({ ...r, message: issue.message }, 'Mermaid Tree');
         d.severity = vscode.DiagnosticSeverity.Warning;
@@ -607,7 +627,7 @@ export function activate(ctx: vscode.ExtensionContext) {
   };
   state.onDidChange(() => void updateDiagnostics());
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
-    if (e.affectsConfiguration('mermaidTree.namingStyle')) void updateDiagnostics();
+    if (e.affectsConfiguration('mermaidTree.namingStyle') || e.affectsConfiguration('mermaidTree.checks')) void updateDiagnostics();
     if (e.affectsConfiguration('mermaidTree.preview')) preview.update();
   }));
   // Diagramtypen visas bredvid panelens namn i stället för som en egen rotnod.
@@ -685,10 +705,16 @@ export function activate(ctx: vscode.ExtensionContext) {
     view.onDidChangeSelection(e => {
       const item = e.selection[0];
       const m = state.model;
+      const fromPreview = edgeFromPreview;
+      edgeFromPreview = undefined;
       if (!item || !m) return;
       if (item.kind === 'node') { revealLine(m.nodes.get(item.id)!.line); preview.focus('node', item.id); }
       if (item.kind === 'subgraph') { revealLine(m.subgraphs.get(item.id)!.line); preview.focus('subgraph', item.id); }
-      if (item.kind === 'edge') revealLine(m.edges.find((x: FlowEdge) => x.key === item.key)!.line);
+      if (item.kind === 'edge') {
+        revealLine(m.edges.find((x: FlowEdge) => x.key === item.key)!.line);
+        // Valdes pilen i trädet lyser inget i bilden; klickades dess text i bilden är den texten markerad.
+        if (item.key !== fromPreview) preview.clearSelection();
+      }
       if (item.kind === 'block' && isSequence(m)) {
         const b = m.blocks.get(item.id)!;
         revealLine(b.line);
@@ -827,6 +853,20 @@ export function activate(ctx: vscode.ExtensionContext) {
             actions.push(a);
           }
         }
+        // Namn som bara skiljer sig i ordindelning: använd det andra namnet överallt, så blir de ett.
+        const similar = context.diagnostics.filter(d => d.code === SIMILAR);
+        if (similar.length) {
+          const found = similarNames(text, parseDiagram(text), style);
+          for (const d of similar) {
+            const issue = found.find(i => i.line === d.range.start.line && i.start === d.range.start.character);
+            for (const other of issue?.similar ?? []) {
+              const a = new vscode.CodeAction(`Use "${other}" instead of "${issue!.id}"`, vscode.CodeActionKind.QuickFix);
+              a.diagnostics = [d];
+              a.command = { title: a.title, command: 'mermaidTree.useName', arguments: [doc.uri, issue!.id, other] };
+              actions.push(a);
+            }
+          }
+        }
         const ours = context.diagnostics.filter(d => d.code === NAMING);
         if (!ours.length) return actions;
         const issues = namingIssues(text, parseDiagram(text), style);
@@ -862,6 +902,15 @@ export function activate(ctx: vscode.ExtensionContext) {
       } catch (e) {
         void vscode.window.showErrorMessage(String((e as Error).message));
       }
+    }),
+
+    // Använd ett annat befintligt namn överallt, så att de två blir ett.
+    vscode.commands.registerCommand('mermaidTree.useName', async (uri: vscode.Uri, id: string, other: string) => {
+      const doc = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString());
+      if (!doc) return;
+      const edit = new vscode.WorkspaceEdit();
+      for (const r of occurrences(doc.getText(), parseDiagram(doc.getText()), id)) edit.replace(doc.uri, new vscode.Range(r.line, r.start, r.line, r.end), other);
+      if (await vscode.workspace.applyEdit(edit) && state.doc === doc) state.renameKeys(id, other);
     }),
 
     // Byt tecken som ser latinska ut mot latinska bokstäver; ett namn som ser ut som ett annat slås ihop med det.

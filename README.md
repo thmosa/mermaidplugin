@@ -45,6 +45,10 @@ Other diagram types are shown in the preview but have no tree yet.
   you edit them; clicking something opens the right file and line. Close its tab to go back to single files.
 - **Errors in the editor**: Mermaid's own syntax errors on the right line, and ids that differ only in
   letter case (Mermaid treats `Order` and `order` as different).
+- **Similar names**: a warning on names that differ only in word separation, such as `orderplanned` and
+  `order_planned`, with a quick fix that uses one of them everywhere.
+- Each of these name checks can be turned off under `mermaidTree.checks` (`letterCase`, `similarNames` and
+  `lookalikeLetters`).
 - **Look-alike letters**: a warning on names with Cyrillic or Greek letters that look Latin, or full-width
   letters, such as `Оrder` with a Cyrillic `О`. Mermaid draws it as another name than `Order` although the
   code looks the same. The quick fix **Use Latin letters** changes every use, and joins it with `Order`

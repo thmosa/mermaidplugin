@@ -97,3 +97,50 @@ test('regler: rätta alla erbjuds som source.fixAll, så att det kan köras vid 
   const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'extension.ts'), 'utf8');
   assert.match(src, /CodeActionKind\.SourceFixAll\.append\('mermaidTree'\)/);
 });
+
+// ---- namn som bara skiljer sig i ordindelning: orderplanned och order_planned
+
+const { similarNames } = require('../out/naming');
+const similar = (text, style = 'off') => similarNames(text, parseDiagram(text), style);
+
+test('liknande namn: namn som bara skiljer sig i ordindelning varnas, båda två', () => {
+  const text = 'flowchart LR\n  order_planned --> Kund\n  Kund --> orderplanned';
+  const issues = similar(text, 'snake_case');
+  assert.deepEqual(issues.map(i => [i.id, i.similar]), [['order_planned', ['orderplanned']], ['orderplanned', ['order_planned']]]);
+  assert.match(issues[1].message, /"orderplanned".*"order_planned".*different/);
+  const line = text.split('\n')[issues[1].line];
+  assert.equal(line.slice(issues[1].start, issues[1].end), 'orderplanned');
+});
+
+test('liknande namn: varnas även utan vald stil och för camelCase och bindestreck', () => {
+  assert.equal(similar('flowchart LR\n  order_planned --> orderplanned').length, 2);
+  assert.equal(similar('flowchart LR\n  order_planned --> orderPlanned').length, 2);
+  assert.equal(similar('flowchart LR\n  order-planned --> orderplanned').length, 2);
+  assert.equal(similar('stateDiagram-v2\n  order_planned --> orderplanned').length, 2);
+  assert.equal(similar('sequenceDiagram\n  order_planned->>orderplanned: hej').length, 2);
+  assert.equal(similar('classDiagram\n  order_planned --> orderplanned').length, 2);
+});
+
+test('liknande namn: ett namn som stilregeln redan varnar för varnas inte två gånger', () => {
+  const issues = similar('flowchart LR\n  order_planned --> orderPlanned', 'snake_case');
+  assert.deepEqual(issues.map(i => i.id), ['order_planned']);
+});
+
+test('liknande namn: bara skillnad i stora och små bokstäver har en egen varning', () => {
+  assert.deepEqual(similar('flowchart LR\n  Order --> order'), []);
+  // Med både skiftläge och ordindelning räknas bara de som skiljer sig i ordindelning.
+  assert.deepEqual(similar('flowchart LR\n  Order --> order\n  order --> or_der').map(i => [i.id, i.similar]),
+    [['Order', ['or_der']], ['order', ['or_der']], ['or_der', ['Order', 'order']]]);
+});
+
+test('liknande namn: olika namn varnas inte, och inte heller text i etiketter', () => {
+  assert.deepEqual(similar('flowchart LR\n  order_planned --> order_done'), []);
+  assert.deepEqual(similar('flowchart LR\n  order_planned[orderplanned] --> B'), []);
+  assert.deepEqual(similar('flowchart LR\n  order1 --> order_2'), []);
+});
+
+test('liknande namn: inga varningar i exempelfilerna', () => {
+  for (const file of fs.readdirSync(path.join(__dirname, '..', 'samples')).filter(f => f.endsWith('.mmd'))) {
+    assert.deepEqual(similar(fs.readFileSync(path.join(__dirname, '..', 'samples', file), 'utf8')), [], file);
+  }
+});

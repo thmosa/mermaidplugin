@@ -137,7 +137,7 @@
     if (kind === 'subgraph') {
       const re = new RegExp(`-state-${reEscape(id)}-\\d+$`);
       return [...svg.querySelectorAll(CLUSTER_SEL)]
-        .find(g => g.dataset.id === id || g.id === id || g.id.endsWith('-' + id) || re.test(g.id))
+        .find(g => g.dataset.id === id || g.id === id || g.id.replace(/^mmd\d+-/, '') === id || re.test(g.id))
         // En hopfälld grupp ritas som en nod med gruppens id.
         || findElement('node', id);
     }
@@ -303,8 +303,11 @@
       if (seq !== renderSeq) return; // en nyare rendering har redan startat
       const anchor = fitNext ? null : captureAnchor();
       fitNext = false;
+      const edgeTextsBefore = selected?.kind === 'edgeText' ? Labels.edgeTexts(svg).map(t => t.text) : null;
       stage.innerHTML = code;
       svg = stage.querySelector('svg');
+      // En vald piltext är bara ett löpnummer: ändras piltexterna skulle numret peka på en annan pil.
+      if (edgeTextsBefore && edgeTextsBefore.join('\n') !== Labels.edgeTexts(svg).map(t => t.text).join('\n')) selected = null;
       Labels.spread(svg, Labels.axisFor(text));
       const grown = Labels.fitClusters(svg);
       const vb = (svg.getAttribute('viewBox') || '0 0 100 100').split(/[\s,]+/).map(Number);
@@ -444,6 +447,7 @@
       render(msg.text);
     }
     if (msg.type === 'focus') focusElement(msg.kind, msg.id);
+    if (msg.type === 'clearSelection') { selected = null; highlight(); }
   });
 
   vscode.postMessage({ type: 'ready' });
