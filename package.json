@@ -2,7 +2,7 @@
   "name": "mermaid-tree",
   "displayName": "Mermaid Tree",
   "description": "Structure tree and live preview for Mermaid diagrams: hide, show and collapse parts of flowcharts, state, sequence and class diagrams.",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "publisher": "local",
   "private": true,
   "license": "MIT",
@@ -52,7 +52,20 @@
         },
         "mermaidTree.preview.theme": {
           "type": "string",
-          "enum": ["auto", "default", "dark", "forest", "neutral", "base", "neo", "neo-dark", "redux", "redux-dark", "redux-color", "redux-dark-color"],
+          "enum": [
+            "auto",
+            "default",
+            "dark",
+            "forest",
+            "neutral",
+            "base",
+            "neo",
+            "neo-dark",
+            "redux",
+            "redux-dark",
+            "redux-color",
+            "redux-dark-color"
+          ],
           "enumDescriptions": [
             "Follow VS Code: light themes use Mermaid's default theme, dark themes use dark.",
             "Mermaid's default theme.",

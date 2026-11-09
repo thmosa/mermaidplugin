@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.0
+
+- **Show in Diagram**: right-click a line in the code or an item in the tree to open the preview and zoom to the
+  element. On a line, the name under the cursor comes first, otherwise what the line is about. If the element is
+  hidden you are told so and nothing is highlighted; inside a collapsed group the group is shown.
+- **Similar names**: a warning on names that differ only in word separation, such as `orderplanned` and
+  `order_planned`, with a quick fix that uses one of them everywhere.
+- The name checks can be turned off one by one with `mermaidTree.checks.letterCase`, `similarNames` and
+  `lookalikeLetters`.
+- Fix: hiding something no longer moves the highlight in the preview to another element. A selected arrow text is
+  cleared when the arrow texts change, and a hidden group is no longer mixed up with a group whose id ends the same.
+
 ## 0.5.0
 
 - **Combine Class Diagrams…**: choose two or more class diagrams and see them drawn as one, in a read-only
