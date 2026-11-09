@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0
+
+- **Combine Class Diagrams…**: choose two or more class diagrams and see them drawn as one, in a read-only
+  view that follows the files. Classes with the same name become one, so relations connect across the files.
+  Members and relations found in several files are shown once, and different labels, namespaces or directions
+  get a warning. Clicking something opens the right file and line.
+- **Look-alike letters**: a warning, with the quick fix *Use Latin letters*, on names with Cyrillic, Greek or
+  full-width letters that look like Latin ones.
+- **Theme menu** in the preview, and Mermaid 12's new themes (`neo`, `neo-dark`, `redux`, `redux-dark`,
+  `redux-color`, `redux-dark-color`) in `mermaidTree.preview.theme`.
+
 ## 0.4.0
 
 - **Participant suggestions** in sequence diagrams: at the start of a message, after the arrow, in notes and
