@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.1
+
+- **Shared states**: a warning when the same state is used inside two composite states. Mermaid draws it as one
+  state, in the last composite state that uses it, so it is missing from the other. Every use gets a warning that
+  links to the other composite states, and the quick fix gives the state its own name in the one you are in. Turn
+  it off with `mermaidTree.checks.sharedStates`.
+- Fix: Focus, Show Closest Objects and Custom Focus… also hide composite states outside the chain, so an arrow
+  between two of them no longer stays in the preview.
+- The license names SortaGameDev.
+
 ## 0.7.0
 
 - **Focus** (the target button on a tree row) shows the whole chain through a node or group: what leads there and
