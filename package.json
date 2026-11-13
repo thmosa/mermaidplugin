@@ -3,14 +3,24 @@
   "displayName": "Mermaid Tree",
   "description": "Structure tree and live preview for Mermaid diagrams: hide, show and collapse parts of flowcharts, state, sequence and class diagrams.",
   "version": "0.7.0",
-  "publisher": "local",
-  "private": true,
+  "publisher": "SortaGameDev",
+  "icon": "media/icon.png",
   "license": "MIT",
   "engines": {
     "vscode": "^1.138.0"
   },
   "categories": [
     "Visualization"
+  ],
+  "keywords": [
+    "mermaid",
+    "diagram",
+    "flowchart",
+    "state diagram",
+    "sequence diagram",
+    "class diagram",
+    "preview",
+    "uml"
   ],
   "main": "./out/extension.js",
   "capabilities": {

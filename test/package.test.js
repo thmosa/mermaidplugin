@@ -24,8 +24,8 @@ test('paket: innehåller det tillägget behöver när det körs', () => {
 });
 
 test('paket: inga källfiler, tester, källkartor eller andra beroenden', () => {
-  const extra = files.filter(f => /^(src|test|samples|\.vscode)\//.test(f) || f.endsWith('.map') || f === 'media/harness.html'
-    || (f.startsWith('node_modules/') && !f.startsWith('node_modules/mermaid/dist/')));
+  const extra = files.filter(f => /^(src|test|samples|images|\.vscode)\//.test(f) || f.endsWith('.map') || f === 'media/harness.html'
+    || (f.startsWith('node_modules/') && !f.startsWith('node_modules/mermaid/dist/') && f !== 'node_modules/mermaid/LICENSE'));
   assert.deepEqual(extra, []);
   assert.ok(files.length < 200, `${files.length} filer`);
 });
@@ -52,4 +52,27 @@ test('paket: versionen stämmer med CHANGELOG och package-lock, och inget ligger
   assert.equal(/^## (.+)$/m.exec(changelog)?.[1], pkg.version);
   assert.equal(lock.version, pkg.version);
   assert.equal(lock.packages[''].version, pkg.version);
+});
+
+// ------------------------------------------------------------ Marketplace
+
+test('Marketplace: publisher SortaGameDev, inte privat, med sökord', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.equal(pkg.publisher, 'SortaGameDev');
+  assert.equal(pkg.private, undefined, '"private" hör till npm och ska inte stå i ett tillägg');
+  for (const k of ['mermaid', 'diagram', 'state diagram', 'class diagram']) assert.ok(pkg.keywords?.includes(k), k);
+});
+
+test('Marketplace: ikonen är en PNG på minst 128×128 och följer med i paketet', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.ok(pkg.icon && files.includes(pkg.icon), `ikon: ${pkg.icon}`);
+  const png = fs.readFileSync(path.join(root, pkg.icon));
+  assert.equal(png.subarray(1, 4).toString(), 'PNG');
+  // IHDR: bredd och höjd som 32-bitars tal efter signaturen och chunkhuvudet.
+  const [w, h] = [png.readUInt32BE(16), png.readUInt32BE(20)];
+  assert.ok(w >= 128 && h >= 128 && w === h, `${w}×${h}`);
+});
+
+test('Marketplace: Mermaids licenstext följer med, eftersom Mermaid ingår i paketet', () => {
+  assert.ok(files.includes('node_modules/mermaid/LICENSE'));
 });

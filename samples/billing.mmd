@@ -1,0 +1,18 @@
+classDiagram
+  %% Example for the guide: combine with orders.mmd, which also has Order and Invoice
+  direction LR
+  class Invoice {
+    +String number
+    +Date due
+  }
+  class InvoiceLine {
+    +Money amount
+  }
+  class Payment {
+    +Money amount
+    +Date paid
+  }
+  Invoice "1" *-- "1..*" InvoiceLine : contains
+  Invoice --> Order : bills
+  Payment --> Invoice : settles
+  InvoiceLine --> OrderLine : charges for

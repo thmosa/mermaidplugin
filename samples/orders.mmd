@@ -1,0 +1,37 @@
+classDiagram
+  %% Example for the guide: an order payload and what uses it
+  direction LR
+  namespace Sales {
+    class Order {
+      +String id
+      +Date created
+      +total() Money
+    }
+    class OrderLine {
+      +int quantity
+      +Money price
+    }
+    class ExpressOrder {
+      +Date deliverBy
+    }
+  }
+  namespace Catalog {
+    class Product {
+      +String sku
+      +String name
+    }
+    class Category
+  }
+  class Customer
+  class Address
+  class Invoice
+  class Shipment
+
+  Customer "1" --> "*" Order : places
+  Order "1" *-- "1..*" OrderLine : contains
+  OrderLine --> Product : refers to
+  Product --> Category : belongs to
+  Order --> Address : delivered to
+  Order <|-- ExpressOrder
+  Invoice --> Order : bills
+  Shipment --> Order : ships

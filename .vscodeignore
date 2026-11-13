@@ -13,6 +13,7 @@
 !media/*.png
 
 # Mermaid: webbläsarbygget för förhandsvisningen och det fristående ESM-bygget för syntaxkontrollen.
+!node_modules/mermaid/LICENSE
 !node_modules/mermaid/dist/mermaid.min.js
 !node_modules/mermaid/dist/mermaid.esm.min.mjs
 !node_modules/mermaid/dist/chunks/mermaid.esm.min/*.mjs
