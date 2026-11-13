@@ -76,3 +76,8 @@ test('Marketplace: ikonen är en PNG på minst 128×128 och följer med i pakete
 test('Marketplace: Mermaids licenstext följer med, eftersom Mermaid ingår i paketet', () => {
   assert.ok(files.includes('node_modules/mermaid/LICENSE'));
 });
+
+test('Marketplace: licensen anger SortaGameDev som upphovsman', () => {
+  const license = fs.readFileSync(path.join(root, 'LICENSE'), 'utf8');
+  assert.match(license, /^Copyright \(c\) \d{4} SortaGameDev$/m);
+});
