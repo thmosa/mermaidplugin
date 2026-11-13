@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.0
+
+- **Focus** (the target button on a tree row) shows the whole chain through a node or group: what leads there and
+  what comes after, each followed in its own direction. Arrows to and from a composite state or subgraph count for
+  what is inside it. In class diagrams a diamond points from the whole to the part and inheritance to the parent;
+  relations without an arrow are followed both ways.
+- **Show Closest Objects** (right-click a row) shows only what is directly linked. **Custom Focus…** chooses out
+  only, in only or in and out, for 1, 2, 3 or all steps; the last choice is preselected per diagram type.
+- Focus fits the preview to what is left and highlights the item.
+- **Collapse buttons in the preview**: each group has a small button in its top right corner, and a collapsed group
+  a button that expands it. Right-click the preview for **Collapse All in Diagram** and **Expand All in Diagram**.
+  The buttons are not part of exports. In the tree, Focus is now the button on a group's row and collapsing is in
+  its context menu.
+- Fix: a state that is shown only because of an arrow outside its composite state is drawn inside the composite
+  state, not outside it next to an empty group.
+
 ## 0.6.0
 
 - **Show in Diagram**: right-click a line in the code or an item in the tree to open the preview and zoom to the
