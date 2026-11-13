@@ -122,3 +122,44 @@ test('kedja: pilar till och från en sammansatt state gäller också det som lig
 test('kedja: även flera nivåer ner (x ligger i Inner som ligger i Outer)', () => {
   assert.deepEqual(real(chain(nested, { kind: 'node', id: 'x' }, 'both', Infinity)), ['Done', 'End', 'Other', 'Start', 'x']);
 });
+
+// ------------------------------------------------------------ vad fokus döljer
+
+const { focusHidden } = require('../out/chain');
+
+test('fokus döljer också grupper utanför kedjan, så att en pil mellan två grupper inte står kvar', () => {
+  const m = parseDiagram(`stateDiagram-v2
+  state G1 {
+    a --> b
+  }
+  state G2 {
+    c
+  }
+  state G3 {
+    d
+  }
+  G2 --> G3
+  b --> e`);
+  const keep = chain(m, { kind: 'node', id: 'a' }, 'both', Infinity);
+  const hidden = focusHidden(m, keep);
+  for (const k of ['s:G2', 's:G3', 'n:c', 'n:d']) assert.ok(hidden.includes(k), `${k} ska döljas: ${hidden}`);
+  for (const k of ['s:G1', 'n:a', 'n:b', 'n:e']) assert.ok(!hidden.includes(k), `${k} ska synas`);
+});
+
+test('fokus döljer inte en grupp som kedjan når via en pil, eller som har något i kedjan', () => {
+  const m = parseDiagram(`stateDiagram-v2
+  x --> Outer
+  state Outer {
+    state Inner {
+      y
+    }
+  }
+  state Other {
+    z
+  }`);
+  const hidden = focusHidden(m, chain(m, { kind: 'node', id: 'x' }, 'both', Infinity));
+  assert.ok(!hidden.includes('s:Outer'), 'Outer nås av pilen');
+  assert.ok(hidden.includes('s:Other'));
+  const inner = focusHidden(m, chain(m, { kind: 'node', id: 'y' }, 'both', 1));
+  assert.ok(!inner.includes('s:Outer') && !inner.includes('s:Inner'), `${inner}`);
+});

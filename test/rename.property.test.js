@@ -21,12 +21,19 @@ function apply(text, edits, newName) {
   return lines.join('\n');
 }
 
-/** Modellen som jämförbar data, med id:n översatta via sub. */
-function shape(model, sub = x => x) {
+/**
+ * Modellen som jämförbar data, med id:n översatta via sub. Etiketten och titeln översätts bara på det
+ * element som byter namn, och inte när de är skrivna som text inom citattecken på sin rad
+ * (state "Zorbel" as Zorbel). En beskrivning eller titel på något annat som råkar vara lika med
+ * id:t (Tarnex : Pelmora) är också text och ska stå kvar.
+ */
+function shape(model, sub = x => x, text = '') {
+  const lines = text.split(/\r?\n/);
+  const subText = (id, value, line) => sub(id) !== id && !(lines[line] ?? '').includes(`"${value}"`) ? sub(value) : value;
   return {
-    nodes: [...model.nodes.values()].map(n => [sub(n.id), sub(n.label), n.line, n.subgraph && sub(n.subgraph)]).sort(),
+    nodes: [...model.nodes.values()].map(n => [sub(n.id), subText(n.id, n.label, n.line), n.line, n.subgraph && sub(n.subgraph)]).sort(),
     edges: model.edges.map(e => [sub(e.from), sub(e.to), e.label, e.line]),
-    subgraphs: [...model.subgraphs.values()].map(s => [sub(s.id), sub(s.title), s.line, s.endLine, s.parent && sub(s.parent)]).sort(),
+    subgraphs: [...model.subgraphs.values()].map(s => [sub(s.id), subText(s.id, s.title, s.line), s.line, s.endLine, s.parent && sub(s.parent)]).sort(),
   };
 }
 
@@ -57,7 +64,7 @@ for (const { name, text } of samples) {
       const r = rename(text, model, id, newName);
       assert.equal(r.error, undefined, `${id}: ${r.error}`);
       const after = parseDiagram(apply(text, r.edits, newName));
-      assert.deepEqual(shape(after), shape(model, substitution(model, id, newName)), `${name}: ${id}`);
+      assert.deepEqual(shape(after), shape(model, substitution(model, id, newName), text), `${name}: ${id}`);
     }
   });
 }

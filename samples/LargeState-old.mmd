@@ -1,0 +1,234 @@
+stateDiagram-v2
+%% logic pipelines - clarification
+[*] --> Varnix
+Qelpo --> Dravik
+Murnet --> Dravik
+Dravik --> Zorbel
+Tavrix --> Peldan
+
+Rovek --> Kelmor
+Suvrak --> Kelmor
+Yendrix --> Brelka
+Fomrik--> Jastel
+ 
+Kelmor-->Vursha : 
+Vursha-->Noltek
+
+
+Drexal --> Parnok
+
+
+
+state "Veltrix" as Varnix {
+        state "Rasken" as QOR {
+            [*] --> Halmora : Nivox
+            Halmora : Tervik
+           
+            Halmora --> Crennal
+            Crennal : Molvex
+ 
+            Crennal --> Qelpo : Dravik
+            Qelpo: Sarnuk
+        }
+ 
+        state "Pelmora" as MUR {
+            [*] --> Dasken : Rovika
+            Dasken : Pelvix
+           
+            Dasken --> Yorrik
+            Yorrik : Cendral
+ 
+            Yorrik --> Murnet : Vaskor
+            Murnet: Brenvik
+        }
+ 
+        state "Zandrik" as TAV {
+            [*] --> Felnor : Kelmora
+            Felnor : Jorvik
+ 
+            Felnor --> Naskel
+            Naskel : Tervana
+ 
+            Naskel --> Tavrix : Delkor
+            Tavrix : Velnor
+           
+        }
+ 
+        state "Kordexa" as ROV {
+            [*] --> Mavrik : Peltona
+            Mavrik : Dravex
+           
+            Mavrik --> Selnor
+            Selnor : Varnel
+ 
+            Selnor --> Rovek : Jalmora
+            Rovek: Casken
+        }
+
+        
+        state "Yelvani" as SUV {
+            [*] --> Brelvik : Darnox
+            Brelvik : Kelvra
+           
+            Brelvik --> Nuvrek
+            Nuvrek : Sormel
+ 
+            Nuvrek --> Suvrak : Talvix
+            Suvrak: Merkon
+        }
+        
+        state "Faskorin" as FOM {
+            [*] --> Jorvexa : Pellan
+            Jorvexa : Varkel
+           
+            Jorvexa --> Dremik
+            Dremik : Nolvar
+ 
+            Dremik --> Fomrik : Vexlan
+            Fomrik: Torsen
+        }
+
+        
+        state "Bromvex" as YEN {
+            [*] --> Kelmora : Jaspel
+            Kelmora : Ruvant
+           
+            Kelmora --> Torvix
+            Torvix : Malden
+ 
+            Torvix --> Yendrix : Paskor
+            Yendrix: Drelva
+        }
+
+
+        state "Norkal" as DRE {
+            [*] --> Veldrik : Sorvex
+            Veldrik : Karmel
+           
+            Veldrik --> Plenora
+            Plenora : Yastik
+ 
+            Plenora --> Drexal : Vornik
+            Drexal: Jelmora
+        }
+
+    }
+ 
+state "Tavernox" as Dravik {
+  Pelmora : Grelvik
+  Karneth : Voskar
+  Mivrona : Teldrik
+  Jaspel : Renvora
+ 
+  [*] --> Pelmora
+  Pelmora --> Karneth : Sorlak
+  Karneth --> Mivrona
+  Mivrona --> Pelmora : Varnet
+  Mivrona --> Jaspel: Drelvik
+  Jaspel --> Pelmora : Korvex
+}
+
+state "Paldren" as Parnok {
+    %% states
+    Varnoki : Jeldra        
+    Kelmora : Torvik
+
+    %% intake
+    [*] --> Varnoki:     
+
+    %% actions
+    Varnoki --> Kelmora
+    Kelmora --> Varnoki : Yelvex
+}
+
+state "Zorbel" as Zorbel {
+ Tenvik : Molrane
+ Daskora : Velnik
+ Pelvona : Jastrel
+ 
+ [*] --> Tenvik
+ Tenvik --> Daskora : Kelmora
+ Daskora --> Pelvona : Varnex
+ Pelvona --> Tenvik : Drelkan
+}
+ 
+state "Peldan" as Peldan {
+ Torvani : Melnora
+ Vaskel : Jorveta
+ Neldrik : Sornava
+ 
+ [*] --> Torvani
+ Torvani --> Vaskel : Drelmora
+ Vaskel --> Neldrik : Pelvani
+ Neldrik --> Torvani : Karmexa
+}
+ 
+
+state "Kelmor" as Kelmor {
+  Drovika : Selnor
+  Jandrel : Vaskora
+  Tarnex : Pelmora
+%%  Renvika : Velnor
+  Mavrona : Keldrik
+  
+  [*] --> Drovika
+  Drovika --> Jandrel : Varnex
+  Jandrel --> Tarnex
+  Tarnex --> Drovika : Yelmora
+  Tarnex --> Mavrona: Dasken
+ %% Renvika --> Drovika : Jalmor
+
+  
+  %%Jandrel --> Mavrona : 
+  Mavrona --> Drovika : Kelmor
+}
+
+state "Fomvexa" as Jastel {
+    Qandrel : Melvoka
+    Ruvanik: Daskora
+    Velnora : Karmel
+    [*]-->Qandrel: 
+    Qandrel --> Velnora : Pellvik
+    Velnora --> Ruvanik : Drelvex 
+    Ruvanik --> Ruvanik: Jastora
+    Ruvanik-->Qandrel: Vasken 
+}
+
+
+state "Zorbel forasdasd " as Vursha {
+ Wenvora : Kelmora
+ Drelvik : Sarnex
+ Jorvala : Pelmora
+ %%Tavrona: Velnika
+
+ [*] --> Wenvora
+ Wenvora --> Drelvik : Naskora
+ Drelvik --> Jorvala : 
+
+
+ Jorvala --> Wenvora : Renvik 
+}
+
+state "asdasdasd" as Noltek {
+ Drelkana : Varnora
+ Pelmira : Kelmexa
+ Torvani : Jeldrik
+ [*] --> Drelkana
+ Drelkana--> Pelmira 
+ Pelmira --> Torvani : Jorvika
+ Pelmira --> Pelmira : Velnora
+ Pelmira --> Drelkana : Sarnika
+ Torvani --> Drelkana : Kelmora 
+
+}
+
+
+state "zxczxczxc" as Brelka {
+    Jarnika : Velnora
+    Peltrix: Kordena
+
+    [*] --> Jarnika
+    Jarnika --> Peltrix: Daskora
+    Peltrix --> Jarnika: Velnika
+    }
+

@@ -374,12 +374,13 @@ test('fokus på grupp: varje synlig state ritas inuti sin grupp (LargeState, sta
   const fs = require('node:fs');
   const { parseDiagram, filterDiagram } = require('../out/diagram');
   const { groupNeighborhood, nodeKey, visibility } = require('../out/parser');
+  const { focusHidden } = require('../out/chain');
   const wrong = [];
   for (const file of ['LargeState.mmd', 'state.mmd']) {
     const model = parseDiagram(fs.readFileSync(path.join(__dirname, '..', 'samples', file), 'utf8'));
     for (const sg of model.subgraphs.keys()) {
       const keep = groupNeighborhood(model, sg);
-      const hidden = new Set([...model.nodes.keys()].filter(n => !keep.has(n)).map(nodeKey));
+      const hidden = new Set(focusHidden(model, keep));
       await sendRender({ text: filterDiagram(model, hidden), fit: true });
       const vis = visibility(model, hidden);
       const pairs = [...model.nodes.values()].filter(n => n.subgraph && !n.pseudo && !vis.isNodeHidden(n.id)).map(n => [n.id, n.subgraph]);
@@ -398,12 +399,12 @@ test('Focus: varje synlig state ritas inuti sin grupp när fokus börjar i en gr
   const fs = require('node:fs');
   const { parseDiagram, filterDiagram } = require('../out/diagram');
   const { nodeKey, visibility } = require('../out/parser');
-  const { chain } = require('../out/chain');
+  const { chain, focusHidden } = require('../out/chain');
   const model = parseDiagram(fs.readFileSync(path.join(__dirname, '..', 'samples', 'LargeState.mmd'), 'utf8'));
   const wrong = [];
   for (const sg of model.subgraphs.keys()) {
     const keep = chain(model, { kind: 'subgraph', id: sg }, 'both', Infinity);
-    const hidden = new Set([...model.nodes.keys()].filter(n => !keep.has(n)).map(nodeKey));
+    const hidden = new Set(focusHidden(model, keep));
     await sendRender({ text: filterDiagram(model, hidden), fit: true });
     const vis = visibility(model, hidden);
     const pairs = [...model.nodes.values()].filter(n => n.subgraph && !n.pseudo && !vis.isNodeHidden(n.id)).map(n => [n.id, n.subgraph]);
@@ -423,14 +424,14 @@ test('fokus: vyn visar det som är kvar och markerar elementet, även när fokus
   const fs = require('node:fs');
   const { parseDiagram, filterDiagram } = require('../out/diagram');
   const { nodeKey } = require('../out/parser');
-  const { chain } = require('../out/chain');
+  const { chain, focusHidden } = require('../out/chain');
   const model = parseDiagram(fs.readFileSync(path.join(__dirname, '..', 'samples', 'LargeState.mmd'), 'utf8'));
   await sendRender({ text: filterDiagram(model, new Set()), fit: true });
   // Zooma in långt bort från W10, som man gör innan man fokuserar.
   await page.evaluate(() => window.__preview.focusElement('node', 'W1_F1'));
   await page.waitForTimeout(500);
   const keep = chain(model, { kind: 'node', id: 'W10_F3' }, 'both', 1);
-  const text = filterDiagram(model, new Set([...model.nodes.keys()].filter(n => !keep.has(n)).map(nodeKey)));
+  const text = filterDiagram(model, new Set(focusHidden(model, keep)));
   // Som VS Code: nytt diagram och fokus direkt efter, utan att vänta på att bilden är klar.
   const before = await renderedCount();
   await page.evaluate(text => {
@@ -449,4 +450,62 @@ test('fokus: vyn visar det som är kvar och markerar elementet, även när fokus
     };
   });
   assert.deepEqual(r, { selected: true, allVisible: true });
+});
+
+// ------------------------------------------------------------ samma state i två sammansatta states
+
+test('delad state: Mermaid ritar den i gruppen varningen säger, och inte i den andra', async () => {
+  const fs = require('node:fs');
+  const { parseDiagram } = require('../out/diagram');
+  const { sharedStates } = require('../out/sharedStates');
+  const texts = fs.readdirSync(path.join(__dirname, '..', 'samples')).filter(f => f.endsWith('.mmd'))
+    .map(f => fs.readFileSync(path.join(__dirname, '..', 'samples', f), 'utf8'))
+    .concat(['stateDiagram-v2\n  state A {\n    s --> t\n  }\n  state B {\n    s\n  }\n  state C {\n    u --> s\n  }']);
+  let checked = 0;
+  const wrong = [];
+  for (const text of texts) {
+    const issues = sharedStates(text, parseDiagram(text));
+    if (!issues.length) continue;
+    await sendRender({ text, fit: true });
+    for (const i of issues) {
+      checked++;
+      const r = await page.evaluate(({ id, group, drawnIn }) => {
+        const box = el => el?.getBoundingClientRect();
+        const n = box(window.__preview.findElement('node', id));
+        const within = sg => { const c = box(window.__preview.findElement('subgraph', sg)); return !!(n && c && n.left >= c.left && n.right <= c.right && n.top >= c.top && n.bottom <= c.bottom); };
+        return { drawn: within(drawnIn), other: group !== drawnIn && within(group) };
+      }, i);
+      if (!r.drawn || r.other) wrong.push(`${i.id}: i ${i.drawnIn} ${r.drawn}, i ${i.group} ${r.other}`);
+    }
+  }
+  assert.ok(checked >= 3, `bara ${checked} varningar kontrollerade`);
+  assert.deepEqual(wrong, []);
+});
+
+test('delad state: efter snabbfixen (eget namn i gruppen) ritar Mermaid en state i varje grupp', async () => {
+  const fs = require('node:fs');
+  const { parseDiagram } = require('../out/diagram');
+  const { sharedStates, ownNameSuggestion } = require('../out/sharedStates');
+  let text = fs.readFileSync(path.join(__dirname, '..', 'samples', 'LargeState-old.mmd'), 'utf8');
+  const before = sharedStates(text, parseDiagram(text));
+  assert.ok(before.length >= 2, `${before.length} varningar`);
+  const fixes = [];
+  // Som snabbfixen, en varning i taget: byt namn på användningarna i gruppen, bakifrån på varje rad.
+  for (let issues = before; issues.length; issues = sharedStates(text, parseDiagram(text))) {
+    const [issue] = issues;
+    const name = ownNameSuggestion(parseDiagram(text), issue);
+    const lines = text.split('\n');
+    for (const r of [...issue.ranges].sort((a, b) => b.start - a.start)) lines[r.line] = lines[r.line].slice(0, r.start) + name + lines[r.line].slice(r.end);
+    text = lines.join('\n');
+    fixes.push({ name, group: issue.group, id: issue.id, drawnIn: issue.drawnIn });
+    assert.ok(fixes.length < 10, 'varningarna tar inte slut');
+  }
+  await sendRender({ text, fit: true });
+  const wrong = await page.evaluate(fixes => fixes.flatMap(f => {
+    const box = el => el?.getBoundingClientRect();
+    const within = (id, sg) => { const n = box(window.__preview.findElement('node', id)); const c = box(window.__preview.findElement('subgraph', sg));
+      return !!(n && c && n.left >= c.left && n.right <= c.right && n.top >= c.top && n.bottom <= c.bottom); };
+    return [!within(f.name, f.group) && `${f.name} inte i ${f.group}`, !within(f.id, f.drawnIn) && `${f.id} inte i ${f.drawnIn}`].filter(Boolean);
+  }), fixes);
+  assert.deepEqual(wrong, []);
 });

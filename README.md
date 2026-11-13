@@ -92,8 +92,12 @@ Other diagram types are shown in the preview but have no tree yet.
   names that do not follow it. The quick fix (Ctrl+.) renames one name or all names in the file;
   **Fix All Naming Issues** does the whole file. To fix names on save, add
   `"source.fixAll.mermaidTree": "explicit"` to `editor.codeActionsOnSave`.
-- Each name check can be turned off under `mermaidTree.checks` (`letterCase`, `similarNames` and
-  `lookalikeLetters`).
+- **Shared states**: the same state inside two composite states. Mermaid draws it as one state, in the last
+  composite state that uses it, with the descriptions from both, so it is missing from the other one. Every
+  use in each composite state gets a warning that links to the others. The quick fix **Give … its own
+  name** renames it only in the composite state you are in.
+- Each check can be turned off under `mermaidTree.checks` (`letterCase`, `similarNames`, `lookalikeLetters`
+  and `sharedStates`).
 
 ## Combine class diagrams
 

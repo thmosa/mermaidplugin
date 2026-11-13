@@ -1,6 +1,6 @@
 // Focus: noderna man når från en nod eller grupp genom pilarna, ut, in eller in och ut.
 
-import { DiagramModel, groupMembers } from './parser';
+import { DiagramModel, groupMembers, nodeKey, subgraphKey } from './parser';
 
 export { arrowDirection } from './arrow';
 
@@ -65,4 +65,23 @@ export function chainFamily(diagramType: string): string {
  */
 export function defaultChain(_diagramType: string): ChainChoice {
   return { direction: 'both', steps: Infinity };
+}
+
+/**
+ * Det fokus döljer: allt utanför kedjan. Även grupper som varken nås av kedjan eller har något i den,
+ * annars står en pil mellan två sådana grupper (G2 --> G3) kvar och grupperna ritas som tomma rutor.
+ */
+export function focusHidden(model: DiagramModel, keep: ReadonlySet<string>): string[] {
+  const keptGroups = new Set<string>();
+  const markUp = (sg: string | undefined) => {
+    for (let cur = sg; cur && !keptGroups.has(cur); cur = model.subgraphs.get(cur)?.parent) keptGroups.add(cur);
+  };
+  for (const id of keep) {
+    if (model.subgraphs.has(id)) markUp(id);
+    else { const n = model.nodes.get(id); if (n && !n.pseudo) markUp(n.subgraph); }
+  }
+  return [
+    ...[...model.nodes.keys()].filter(id => !keep.has(id)).map(nodeKey),
+    ...[...model.subgraphs.keys()].filter(id => !keptGroups.has(id)).map(subgraphKey),
+  ];
 }

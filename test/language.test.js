@@ -289,3 +289,31 @@ test('fokus: Focus, Show Closest Objects och Custom Focus… anpassar vyn till d
   }
   assert.match(src, /type: 'focus', kind, id, fit/, 'fit skickas inte till förhandsvisningen');
 });
+
+test('fokus: Focus, Show Closest Objects och Custom Focus… döljer också grupper utanför kedjan', () => {
+  const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
+  for (const id of ['mermaidTree.focusNeighbors', 'mermaidTree.showClosest', 'mermaidTree.showChain']) {
+    const body = src.slice(src.indexOf(`registerCommand('${id}'`));
+    assert.match(body.slice(0, body.indexOf('}),')), /state\.replaceHidden\(focusHidden\(m, keep\)\)/, id);
+  }
+});
+
+test('delad state: varningen kan stängas av, och snabbfixen ger staten ett eget namn i gruppen', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
+  const setting = pkg.contributes.configuration.properties['mermaidTree.checks.sharedStates'];
+  assert.equal(setting?.type, 'boolean');
+  assert.equal(setting?.default, true);
+  const id = 'mermaidTree.ownStateName';
+  assert.ok(pkg.contributes.commands.find(c => c.command === id), 'kommandot saknas');
+  assert.equal(pkg.contributes.menus.commandPalette.find(m => m.command === id)?.when, 'false');
+  assert.ok(src.includes(`registerCommand('${id}'`));
+  assert.ok(src.includes(`check('sharedStates')`) && src.includes('sharedStates(text'), 'varningen räknas inte fram');
+  assert.ok(src.includes('d.code === SHARED'), 'ingen snabbfix för varningen');
+});
+
+test('delad state: varningen länkar till den andra gruppen', () => {
+  const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
+  const body = src.slice(src.indexOf(`check('sharedStates')`));
+  assert.match(body.slice(0, body.indexOf('found.push(d)')), /relatedInformation = issue\.related\.map/);
+});

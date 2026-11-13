@@ -15,7 +15,8 @@ import { MergeConflict, MergeResult, mergeClassDiagrams } from './mergeClass';
 import { Shown, Target, resolveTarget, targetAt } from './showInDiagram';
 import { participantAt, participantChoices, participantCompletion } from './participant';
 import { LEGEND, semanticTokens } from './semantic';
-import { ChainDirection, chain, chainFamily, defaultChain } from './chain';
+import { ChainDirection, chain, chainFamily, defaultChain, focusHidden } from './chain';
+import { ownNameProblem, ownNameSuggestion, sharedStates } from './sharedStates';
 
 const SEMANTIC_LEGEND = new vscode.SemanticTokensLegend(LEGEND.tokenTypes, LEGEND.tokenModifiers);
 
@@ -621,6 +622,7 @@ export function activate(ctx: vscode.ExtensionContext) {
   const NAMING = 'naming';
   const LOOKALIKE = 'lookalike';
   const SIMILAR = 'similar';
+  const SHARED = 'sharedState';
   /** Om en kontroll av namn är påslagen i inställningarna. */
   const check = (name: string) => vscode.workspace.getConfiguration('mermaidTree.checks').get<boolean>(name, true);
   const FIX_ALL = vscode.CodeActionKind.SourceFixAll.append('mermaidTree');
@@ -653,6 +655,17 @@ export function activate(ctx: vscode.ExtensionContext) {
       d.severity = vscode.DiagnosticSeverity.Warning;
       d.code = NAMING;
       found.push(d);
+    }
+    // Samma state i två sammansatta states: varje användning, i varje grupp, med länk till de andra.
+    for (const issue of check('sharedStates') ? sharedStates(text, m) : []) {
+      for (const r of issue.ranges) {
+        const d = toDiagnostic({ ...r, message: issue.message }, 'Mermaid Tree');
+        d.severity = vscode.DiagnosticSeverity.Warning;
+        d.code = SHARED;
+        d.relatedInformation = issue.related.map(o => new vscode.DiagnosticRelatedInformation(
+          new vscode.Location(doc.uri, new vscode.Range(o.line, o.start, o.line, o.end)), `"${issue.id}" in ${o.group}`));
+        found.push(d);
+      }
     }
     for (const issue of check('lookalikeLetters') ? lookalikeIssues(text, m) : []) {
       for (const r of issue.ranges) {
@@ -826,7 +839,7 @@ export function activate(ctx: vscode.ExtensionContext) {
       if (steps === undefined || state.model !== m) return;
       await ctx.globalState.update(key, { direction, steps });
       const keep = chain(m, { kind: target.kind, id: target.id }, direction, steps || Infinity);
-      state.replaceHidden([...m.nodes.keys()].filter(id => !keep.has(id)).map(nodeKey));
+      state.replaceHidden(focusHidden(m, keep));
       preview.focus(target.kind, target.id, true);
     }),
 
@@ -836,7 +849,7 @@ export function activate(ctx: vscode.ExtensionContext) {
       const target = item ?? view.selection[0];
       if (!m || (target?.kind !== 'node' && target?.kind !== 'subgraph')) return;
       const keep = chain(m, { kind: target.kind, id: target.id }, 'both', 1);
-      state.replaceHidden([...m.nodes.keys()].filter(id => !keep.has(id)).map(nodeKey));
+      state.replaceHidden(focusHidden(m, keep));
       preview.focus(target.kind, target.id, true);
     }),
 
@@ -847,7 +860,7 @@ export function activate(ctx: vscode.ExtensionContext) {
       // Alltid det generella: in och ut, hela kedjan. Specialfall väljs med Focus… (showChain).
       const { direction, steps } = defaultChain(m.diagramType);
       const keep = chain(m, { kind: target.kind, id: target.id }, direction, steps);
-      state.replaceHidden([...m.nodes.keys()].filter(id => !keep.has(id)).map(nodeKey));
+      state.replaceHidden(focusHidden(m, keep));
       preview.focus(target.kind, target.id, true);
     }),
 
@@ -990,6 +1003,19 @@ export function activate(ctx: vscode.ExtensionContext) {
             actions.push(a);
           }
         }
+        // Samma state i två sammansatta states: ge den ett eget namn i gruppen där den inte ritas.
+        const shared = context.diagnostics.filter(d => d.code === SHARED);
+        if (shared.length) {
+          for (const issue of sharedStates(text, parseDiagram(text))) {
+            const ds = shared.filter(d => issue.ranges.some(r => r.line === d.range.start.line && r.start === d.range.start.character));
+            if (!ds.length) continue;
+            const a = new vscode.CodeAction(`Give "${issue.id}" its own name in ${issue.group}…`, vscode.CodeActionKind.QuickFix);
+            a.diagnostics = ds;
+            a.isPreferred = true;
+            a.command = { title: a.title, command: 'mermaidTree.ownStateName', arguments: [doc.uri, issue.id, issue.group] };
+            actions.push(a);
+          }
+        }
         // Namn som bara skiljer sig i ordindelning: använd det andra namnet överallt, så blir de ett.
         const similar = context.diagnostics.filter(d => d.code === SIMILAR);
         if (similar.length) {
@@ -1048,6 +1074,28 @@ export function activate(ctx: vscode.ExtensionContext) {
       const edit = new vscode.WorkspaceEdit();
       for (const r of occurrences(doc.getText(), parseDiagram(doc.getText()), id)) edit.replace(doc.uri, new vscode.Range(r.line, r.start, r.line, r.end), other);
       if (await vscode.workspace.applyEdit(edit) && state.doc === doc) state.renameKeys(id, other);
+    }),
+
+    // Ge en state som också finns i en annan sammansatt state ett eget namn, bara i den här gruppen.
+    vscode.commands.registerCommand('mermaidTree.ownStateName', async (uri: vscode.Uri, id: string, group: string) => {
+      const doc = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString());
+      if (!doc) return;
+      const m = parseDiagram(doc.getText());
+      const issue = sharedStates(doc.getText(), m).find(i => i.id === id && i.group === group);
+      if (!issue) return;
+      const name = await vscode.window.showInputBox({
+        title: `New name for "${id}" in ${group}`,
+        prompt: `Only the uses in ${group} change; the other composite states keep "${id}".`,
+        value: ownNameSuggestion(m, issue),
+        validateInput: v => ownNameProblem(m, v.trim()),
+      });
+      if (!name) return;
+      // Texten kan ha ändrats medan rutan var öppen: räkna om var namnet används i gruppen.
+      const now = sharedStates(doc.getText(), parseDiagram(doc.getText())).find(i => i.id === id && i.group === group);
+      if (!now || ownNameProblem(parseDiagram(doc.getText()), name.trim())) return;
+      const edit = new vscode.WorkspaceEdit();
+      for (const r of now.ranges) edit.replace(doc.uri, new vscode.Range(r.line, r.start, r.line, r.end), name.trim());
+      await vscode.workspace.applyEdit(edit);
     }),
 
     // Byt tecken som ser latinska ut mot latinska bokstäver; ett namn som ser ut som ett annat slås ihop med det.

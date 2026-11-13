@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { openMermaid } = require('./support/mermaid-browser');
+const { focusHidden } = require('../out/chain');
 
 let mm;
 test.before(async () => { mm = await openMermaid(); });
@@ -129,17 +130,17 @@ for (const sample of samples) {
     const model = parseClass(sample.text);
     for (const id of model.nodes.keys()) {
       const keep = neighborhood(model, id, 1);
-      await assertMatches(model, new Set([...model.nodes.keys()].filter(n => !keep.has(n)).map(nodeKey)), `${sample.name} fokus ${id}`);
+      await assertMatches(model, new Set(focusHidden(model, keep)), `${sample.name} fokus ${id}`);
     }
   });
 
   test(`kontrakt ${sample.name}: Focus från varje klass: ut, in och båda, hela vägen`, async () => {
-    const { chain } = require('../out/chain');
+    const { chain, focusHidden } = require('../out/chain');
     const model = parseClass(sample.text);
     for (const id of model.nodes.keys()) {
       for (const dir of ['follow', 'against', 'both']) {
         const keep = chain(model, { kind: 'node', id }, dir, Infinity);
-        await assertMatches(model, new Set([...model.nodes.keys()].filter(n => !keep.has(n)).map(nodeKey)), `${sample.name} kedja ${dir} ${id}`);
+        await assertMatches(model, new Set(focusHidden(model, keep)), `${sample.name} kedja ${dir} ${id}`);
       }
     }
   });
@@ -149,7 +150,7 @@ for (const sample of samples) {
     const model = parseClass(sample.text);
     for (const sg of model.subgraphs.keys()) {
       const keep = groupNeighborhood(model, sg);
-      await assertMatches(model, new Set([...model.nodes.keys()].filter(n => !keep.has(n)).map(nodeKey)), `${sample.name} fokus ${sg}`);
+      await assertMatches(model, new Set(focusHidden(model, keep)), `${sample.name} fokus ${sg}`);
     }
   });
 

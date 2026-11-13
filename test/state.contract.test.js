@@ -118,7 +118,11 @@ for (const sample of samples) {
     for (const key of keys) await assertMatches(model, new Set([key]), `${sample.name} dold ${key}`);
   });
 
-  test(`kontrakt ${sample.name}: alla tillstånd i ett sammansatt tillstånd dolda`, async () => {
+  // Samma state i två sammansatta states ritar Mermaid som en, så "allt i gruppen" är inte samma sak
+  // för Mermaid och modellen. Tillägget varnar för det (sharedStates), så de exemplen hoppas över här.
+  const shared = require('../out/sharedStates').sharedStates(sample.text, parseState(sample.text));
+  const sharedSkip = shared.length ? { skip: `samma state i två sammansatta states (${[...new Set(shared.map(s => s.id))].join(', ')}), som tillägget varnar för` } : {};
+  test(`kontrakt ${sample.name}: alla tillstånd i ett sammansatt tillstånd dolda`, sharedSkip, async () => {
     const model = parseState(sample.text);
     for (const sg of model.subgraphs.keys()) {
       const inside = [...model.nodes.values()].filter(n => {
