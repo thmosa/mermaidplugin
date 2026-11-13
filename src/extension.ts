@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import { FlowEdge, visibility, neighborhood, nodeKey, edgeKey, subgraphKey, collapseKey } from './parser';
+import { FlowEdge, visibility, nodeKey, edgeKey, subgraphKey, collapseKey } from './parser';
 import { AnyModel, parseDiagram, renderInfo } from './diagram';
 import { SequenceModel, SequenceRender, blockSuppressor } from './sequenceParser';
 import { caseConflicts } from './diagnostics';
 import { checkSyntax } from './mermaidCheck';
 import { syntaxDiagnostic } from './syntax';
-import { Item, children, parentOf, initialState, countMatches } from './tree';
+import { Item, children, parentOf, initialState, countMatches, groupToggles, collapsibleGroups } from './tree';
 import { idAt, occurrences, rename, renameKeys, renamedId } from './rename';
 import { edgeAtClick } from './edgeClick';
 import { HiddenStore } from './hiddenStore';
@@ -15,6 +15,7 @@ import { MergeConflict, MergeResult, mergeClassDiagrams } from './mergeClass';
 import { Shown, Target, resolveTarget, targetAt } from './showInDiagram';
 import { participantAt, participantChoices, participantCompletion } from './participant';
 import { LEGEND, semanticTokens } from './semantic';
+import { ChainDirection, chain, chainFamily, defaultChain } from './chain';
 
 const SEMANTIC_LEGEND = new vscode.SemanticTokensLegend(LEGEND.tokenTypes, LEGEND.tokenModifiers);
 
@@ -141,11 +142,25 @@ class DiagramState {
   }
 
   /** Texten att rendera, och för sequence vilka block som ritas och vilka av dem som är hopfällda. */
-  rendered(): SequenceRender & { collapsed: string[] } {
-    if (!this.doc || !this.model) return { text: '', blocks: [], rects: [], sections: {}, collapsed: [] };
+  rendered(): SequenceRender & { collapsed: string[]; toggles: { id: string; collapsed: boolean }[]; collapsible: number } {
+    if (!this.doc || !this.model) return { text: '', blocks: [], rects: [], sections: {}, collapsed: [], toggles: [], collapsible: 0 };
     const info = renderInfo(this.model, this.hidden);
     const drawn = [...info.blocks, ...info.rects, ...Object.values(info.sections).flat(), ...info.blocks.map(id => `${id}:0`)];
-    return { ...info, collapsed: drawn.filter(id => this.hidden.has(collapseKey(id))) };
+    return {
+      ...info,
+      collapsed: drawn.filter(id => this.hidden.has(collapseKey(id))),
+      // Knapparna i bilden, och om högerklicksmenyn har något att fälla ihop.
+      toggles: groupToggles(this.model, this.hidden),
+      collapsible: collapsibleGroups(this.model).length,
+    };
+  }
+
+  /** Fäller ihop alla grupper, eller fäller ut allt som är hopfällt (även grenar i sequence). */
+  setAllCollapsed(collapsed: boolean) {
+    if (!this.model) return;
+    if (collapsed) for (const id of collapsibleGroups(this.model)) this.hidden.add(collapseKey(id));
+    else this.hidden = new Set([...this.hidden].filter(k => !k.startsWith('c:')));
+    this.commit();
   }
 
   private commit() {
@@ -383,6 +398,12 @@ class Preview {
         void this.panel?.webview.postMessage(this.pendingShow);
         this.pendingShow = undefined;
       }
+      // Knappen i gruppens hörn: fäll ihop eller ut.
+      if (msg.type === 'toggleGroup') {
+        const m = this.state.model;
+        const id = String(msg.id);
+        if (m && m.diagramType !== 'sequenceDiagram' && m.subgraphs.has(id)) this.state.setCollapsed(id, !this.state.hidden.has(collapseKey(id)));
+      }
       if (msg.type === 'clicked') this.onClicked(msg.kind, msg.id, msg.toggle === true, msg.branch === true);
       if (msg.type === 'edgeClicked' && Array.isArray(msg.texts)) this.onEdgeClicked(msg.texts.map(String), Number(msg.index));
       if (msg.type === 'export') void this.save(msg.format, msg.data);
@@ -407,8 +428,9 @@ class Preview {
     void vscode.window.setStatusBarMessage(`Saved ${vscode.workspace.asRelativePath(target)}`, 4000);
   }
 
-  focus(kind: 'node' | 'subgraph' | 'block', id: string) {
-    if (this.ready) void this.panel?.webview.postMessage({ type: 'focus', kind, id });
+  /** fit: anpassa vyn till hela det som syns (efter fokus), annars zooma till elementet. */
+  focus(kind: 'node' | 'subgraph' | 'block', id: string, fit = false) {
+    if (this.ready) void this.panel?.webview.postMessage({ type: 'focus', kind, id, fit });
   }
 
   /** Öppnar förhandsvisningen och markerar elementet, när diagrammet som ska visas är ritat. */
@@ -515,6 +537,20 @@ const TOOLBAR_HTML = `<div id="toolbar">
 </div>`;
 
 // ---------------------------------------------------------------- aktivering
+
+/** Ett val i en lista där det förra valet är förvalt; undefined om man avbryter. */
+function pickOne<T>(title: string, items: { label: string; description?: string; value: T }[], current: T): Promise<T | undefined> {
+  return new Promise(resolve => {
+    const qp = vscode.window.createQuickPick<vscode.QuickPickItem & { value: T }>();
+    qp.title = title;
+    qp.items = items;
+    qp.activeItems = items.filter(i => i.value === current);
+    let accepted = false;
+    qp.onDidAccept(() => { accepted = true; resolve((qp.selectedItems[0] ?? qp.activeItems[0])?.value); qp.hide(); });
+    qp.onDidHide(() => { if (!accepted) resolve(undefined); qp.dispose(); });
+    qp.show();
+  });
+}
 
 export function activate(ctx: vscode.ExtensionContext) {
   const state = new DiagramState(ctx);
@@ -768,13 +804,51 @@ export function activate(ctx: vscode.ExtensionContext) {
     vscode.commands.registerCommand('mermaidTree.openSettings', () =>
       vscode.commands.executeCommand('workbench.action.openSettings', `@ext:${ctx.extension.id}`)),
 
+    // Kedjan av pilar från en nod eller grupp. Valet sparas per diagramtyp (steg 0 = alla).
+    vscode.commands.registerCommand('mermaidTree.showChain', async (item?: Item) => {
+      const m = state.model;
+      const target = item ?? view.selection[0];
+      if (!m || (target?.kind !== 'node' && target?.kind !== 'subgraph')) return;
+      const key = `mermaidTree.chain.${chainFamily(m.diagramType)}`;
+      const saved = ctx.globalState.get<{ direction: ChainDirection; steps: number }>(key);
+      const last = saved ? { direction: saved.direction, steps: saved.steps || Infinity } : defaultChain(m.diagramType);
+      const name = m.nodes.get(target.id)?.label ?? m.subgraphs.get(target.id)?.title ?? target.id;
+      const direction = await pickOne<ChainDirection>(`Show Chain from ${name}: direction`, [
+        { label: 'In and out', description: 'what leads here and what comes after', value: 'both' },
+        { label: 'Out only', description: 'what comes after, along the arrows', value: 'follow' },
+        { label: 'In only', description: 'what leads here', value: 'against' },
+      ], last.direction);
+      if (!direction) return;
+      const steps = await pickOne<number>(`Show Chain from ${name}: steps`, [
+        { label: '1 step', description: 'only what is directly linked', value: 1 }, { label: '2 steps', value: 2 }, { label: '3 steps', value: 3 },
+        { label: 'All steps', description: 'the whole chain', value: 0 },
+      ], last.steps === Infinity ? 0 : last.steps);
+      if (steps === undefined || state.model !== m) return;
+      await ctx.globalState.update(key, { direction, steps });
+      const keep = chain(m, { kind: target.kind, id: target.id }, direction, steps || Infinity);
+      state.replaceHidden([...m.nodes.keys()].filter(id => !keep.has(id)).map(nodeKey));
+      preview.focus(target.kind, target.id, true);
+    }),
+
+    // Det närmaste: ett steg in och ut (med den stora statens pilar), som det tidigare fokuset.
+    vscode.commands.registerCommand('mermaidTree.showClosest', (item?: Item) => {
+      const m = state.model;
+      const target = item ?? view.selection[0];
+      if (!m || (target?.kind !== 'node' && target?.kind !== 'subgraph')) return;
+      const keep = chain(m, { kind: target.kind, id: target.id }, 'both', 1);
+      state.replaceHidden([...m.nodes.keys()].filter(id => !keep.has(id)).map(nodeKey));
+      preview.focus(target.kind, target.id, true);
+    }),
+
     vscode.commands.registerCommand('mermaidTree.focusNeighbors', (item?: Item) => {
       const m = state.model;
       const target = item ?? view.selection[0];
-      if (!m || target?.kind !== 'node') return;
-      const keep = neighborhood(m, target.id, 1);
+      if (!m || (target?.kind !== 'node' && target?.kind !== 'subgraph')) return;
+      // Alltid det generella: in och ut, hela kedjan. Specialfall väljs med Focus… (showChain).
+      const { direction, steps } = defaultChain(m.diagramType);
+      const keep = chain(m, { kind: target.kind, id: target.id }, direction, steps);
       state.replaceHidden([...m.nodes.keys()].filter(id => !keep.has(id)).map(nodeKey));
-      preview.focus('node', target.id);
+      preview.focus(target.kind, target.id, true);
     }),
 
     vscode.commands.registerCommand('mermaidTree.hideItem', (item?: Item) => {
@@ -790,6 +864,10 @@ export function activate(ctx: vscode.ExtensionContext) {
       const target = item ?? view.selection[0];
       if (target?.kind === 'subgraph' || target?.kind === 'block') { state.setCollapsed(target.id, false); preview.focus(target.kind, target.id); }
     }),
+
+    // Förhandsvisningens högerklicksmeny.
+    vscode.commands.registerCommand('mermaidTree.collapseAllInDiagram', () => state.setAllCollapsed(true)),
+    vscode.commands.registerCommand('mermaidTree.expandAllInDiagram', () => state.setAllCollapsed(false)),
 
     // Visa och markera elementet på raden i koden, eller det valda i trädet, i förhandsvisningen.
     vscode.commands.registerCommand('mermaidTree.showInDiagram', (arg?: Item | vscode.Uri) => {

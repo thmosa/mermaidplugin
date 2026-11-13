@@ -196,3 +196,19 @@ test('state: nämns ett tillstånd i två sammansatta tillstånd hör det till d
   const m = parseState('stateDiagram-v2\n  state V {\n    X --> P\n  }\n  state W {\n    X --> Q\n  }');
   assert.equal(m.nodes.get('X').subgraph, 'W');
 });
+
+test('filtrera: en state vars rader i gruppen döljs, men som har en pil utanför gruppen, deklareras kvar i gruppen', () => {
+  // Annars ritar Mermaid den där den nämns först, på pilen utanför, och gruppen blir tom.
+  const m = parseState(`stateDiagram-v2
+  state W6 {
+    W6_Wait --> W6_F2: go
+    W6_F2 --> W6_Wait: back
+  }
+  W6_F2 --> W7_Wait: trigger
+  state W7 {
+    W7_Wait --> W7_F1: x
+  }`);
+  const out = filterState(m, new Set([nodeKey('W6_Wait')]));
+  const block = out.slice(out.indexOf('state W6 {'), out.indexOf('}'));
+  assert.match(block, /^\s*W6_F2\s*$/m, out);
+});

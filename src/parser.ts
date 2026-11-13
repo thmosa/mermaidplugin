@@ -2,6 +2,8 @@
 // vi kan bygga arbetsträdet, hoppa till rätt rad och filtrera bort dolda element
 // innan diagrammet skickas till Mermaid för rendering.
 
+import { ArrowDirection, arrowDirection } from './arrow';
+
 export interface FlowNode {
   id: string;
   label: string;
@@ -22,6 +24,8 @@ export interface FlowEdge {
   to: string;
   label: string;
   line: number;
+  /** Pilens riktning (class diagram och flowchart); saknas den pekar pilen från `from` till `to`. */
+  dir?: ArrowDirection;
 }
 
 export interface FlowSubgraph {
@@ -349,7 +353,7 @@ export function parseFlowchart(text: string): FlowModel {
           const pair = `${a.id}->${b.id}`;
           const n = pairCount.get(pair) ?? 0;
           pairCount.set(pair, n + 1);
-          model.edges.push({ key: `${pair}#${n}`, index: model.edges.length, from: a.id, to: b.id, label: st.links[k].label, line: i });
+          model.edges.push({ key: `${pair}#${n}`, index: model.edges.length, from: a.id, to: b.id, label: st.links[k].label, line: i, dir: arrowDirection(st.links[k].text, 'flow') });
         }
       }
     }
@@ -555,6 +559,32 @@ export function filterFlowchart(model: FlowModel, hidden: ReadonlySet<string>): 
     }
   }
   return out.join('\n');
+}
+
+/** Gruppen och allt i den: noder och grupper på alla nivåer under den. */
+export function groupMembers(model: DiagramModel, sgId: string): Set<string> {
+  const within = (sg: string | undefined) => {
+    for (let cur = sg; cur; cur = model.subgraphs.get(cur)?.parent) if (cur === sgId) return true;
+    return false;
+  };
+  const inside = new Set<string>([sgId]);
+  for (const id of model.subgraphs.keys()) if (within(id)) inside.add(id);
+  for (const n of model.nodes.values()) if (within(n.subgraph)) inside.add(n.id);
+  return inside;
+}
+
+/**
+ * Fokus på en grupp: gruppen, allt i den (även grupper inuti) och allt som har en pil till eller
+ * från gruppen eller något i den.
+ */
+export function groupNeighborhood(model: DiagramModel, sgId: string): Set<string> {
+  const inside = groupMembers(model, sgId);
+  const keep = new Set(inside);
+  for (const e of model.edges) {
+    if (inside.has(e.from)) keep.add(e.to);
+    if (inside.has(e.to)) keep.add(e.from);
+  }
+  return keep;
 }
 
 /** Alla noder inom `depth` steg från `id`, oavsett kantriktning. */

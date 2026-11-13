@@ -28,7 +28,22 @@ Other diagram types are shown in the preview but have no tree yet.
   relation) to go to that line.
 - **Search Tree** (the search icon in the view's title bar) filters the tree as you type: names, ids, labels,
   messages and block titles. Groups open to show the matches; **Clear Search** shows everything again.
-- **Show Only This and Its Neighbors** focuses on one node.
+- **Focus** (the button on a node's or group's row in the tree) shows the whole chain through it: everything
+  that leads there and everything that comes after, each followed in its own direction. Something that is
+  only linked through a side branch, like `c` in `B --> a` and `B --> c` when you focus on `a`, is not part of
+  the chain. From a group (subgraph, composite state or namespace) the chain starts in everything inside it.
+  Arrows to and from a composite state or subgraph also count for what is inside it. In class diagrams a
+  diamond counts as an arrow from the whole to the part, and inheritance points to the parent. Relations
+  without an arrow are followed both ways.
+- **Show Closest Objects** (right-click the row) shows only what is directly linked to it, one arrow in or out.
+- **Custom Focus…** (right-click the row) is for special cases: **Out only** (what comes after; from a class,
+  what it consists of, uses and inherits), **In only** (what leads there) or **In and out**, for 1, 2 or 3
+  steps or the whole chain. The last choice is preselected next time, per diagram type; the Focus button
+  always shows the whole chain in and out. **Collapse in Diagram** for groups is also in the row's context
+  menu.
+- **Collapse and expand in the preview**: each group has a small button in its top right corner that
+  collapses it into one box, and the box gets a button that expands it again. Right-click the preview for
+  **Collapse All in Diagram** and **Expand All in Diagram**. The buttons are not part of exports.
 - **Participant suggestions** in sequence diagrams: when you start a message, after the arrow, in a note and
   after `activate`, `deactivate` and `destroy`, the participants in the diagram are suggested.
 - **Change Participant…** (right-click a participant in a message, note or activate line of a sequence

@@ -227,9 +227,19 @@
       },
       {
         "command": "mermaidTree.focusNeighbors",
-        "title": "Show Only This and Its Neighbors",
+        "title": "Focus",
         "category": "Mermaid Tree",
         "icon": "$(target)"
+      },
+      {
+        "command": "mermaidTree.showClosest",
+        "title": "Show Closest Objects",
+        "category": "Mermaid Tree"
+      },
+      {
+        "command": "mermaidTree.showChain",
+        "title": "Custom Focus…",
+        "category": "Mermaid Tree"
       },
       {
         "command": "mermaidTree.hideItem",
@@ -248,6 +258,16 @@
         "title": "Expand in Diagram",
         "category": "Mermaid Tree",
         "icon": "$(unfold)"
+      },
+      {
+        "command": "mermaidTree.collapseAllInDiagram",
+        "title": "Collapse All in Diagram",
+        "category": "Mermaid Tree"
+      },
+      {
+        "command": "mermaidTree.expandAllInDiagram",
+        "title": "Expand All in Diagram",
+        "category": "Mermaid Tree"
       },
       {
         "command": "mermaidTree.renameItem",
@@ -323,6 +343,18 @@
           "group": "navigation@9"
         }
       ],
+      "webview/context": [
+        {
+          "command": "mermaidTree.collapseAllInDiagram",
+          "when": "webviewId == 'mermaidTree.preview' && mermaidTreeGroups",
+          "group": "1_collapse@1"
+        },
+        {
+          "command": "mermaidTree.expandAllInDiagram",
+          "when": "webviewId == 'mermaidTree.preview' && mermaidTreeGroups",
+          "group": "1_collapse@2"
+        }
+      ],
       "view/item/context": [
         {
           "command": "mermaidTree.showInDiagram",
@@ -330,16 +362,22 @@
         },
         {
           "command": "mermaidTree.focusNeighbors",
-          "when": "view == mermaidTree.structure && viewItem == node",
+          "when": "view == mermaidTree.structure && viewItem =~ /^(node|subgraph|subgraphCollapsed)$/",
           "group": "inline"
         },
         {
-          "command": "mermaidTree.focusNeighbors",
-          "when": "view == mermaidTree.structure && viewItem == node"
+          "command": "mermaidTree.showClosest",
+          "when": "view == mermaidTree.structure && viewItem =~ /^(node|subgraph|subgraphCollapsed)$/",
+          "group": "1_focus@1"
+        },
+        {
+          "command": "mermaidTree.showChain",
+          "when": "view == mermaidTree.structure && viewItem =~ /^(node|subgraph|subgraphCollapsed)$/",
+          "group": "1_focus@2"
         },
         {
           "command": "mermaidTree.collapseGroup",
-          "when": "view == mermaidTree.structure && viewItem =~ /^(subgraph|section|block)$/",
+          "when": "view == mermaidTree.structure && viewItem =~ /^(section|block)$/",
           "group": "inline"
         },
         {
@@ -348,7 +386,7 @@
         },
         {
           "command": "mermaidTree.expandGroup",
-          "when": "view == mermaidTree.structure && viewItem =~ /^(subgraphCollapsed|sectionCollapsed|blockCollapsed)$/",
+          "when": "view == mermaidTree.structure && viewItem =~ /^(sectionCollapsed|blockCollapsed)$/",
           "group": "inline"
         },
         {
@@ -368,6 +406,14 @@
       "commandPalette": [
         {
           "command": "mermaidTree.showInDiagram",
+          "when": "editorLangId == mermaid"
+        },
+        {
+          "command": "mermaidTree.collapseAllInDiagram",
+          "when": "editorLangId == mermaid"
+        },
+        {
+          "command": "mermaidTree.expandAllInDiagram",
           "when": "editorLangId == mermaid"
         },
         {
@@ -403,6 +449,14 @@
           "when": "false"
         },
         {
+          "command": "mermaidTree.showChain",
+          "when": "false"
+        },
+        {
+          "command": "mermaidTree.showClosest",
+          "when": "false"
+        },
+        {
           "command": "mermaidTree.hideItem",
           "when": "false"
         },
@@ -421,7 +475,7 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "tsc -p . && node --test test/*.test.js",
-    "test:unit": "tsc -p . && node --test test/parser.test.js test/state.test.js test/zoom.test.js test/labels.test.js test/language.test.js test/diagnostics.test.js test/tree.test.js test/syntax.test.js test/collapse.test.js test/sequence.test.js test/class.test.js test/rename.test.js test/rename.property.test.js test/edgeClick.test.js test/hiddenStore.test.js test/naming.test.js test/participant.test.js test/completion.test.js test/grammar.test.js test/semantic.test.js test/lookalike.test.js test/mergeClass.test.js test/showInDiagram.test.js",
+    "test:unit": "tsc -p . && node --test test/parser.test.js test/state.test.js test/zoom.test.js test/labels.test.js test/language.test.js test/diagnostics.test.js test/tree.test.js test/syntax.test.js test/collapse.test.js test/sequence.test.js test/class.test.js test/rename.test.js test/rename.property.test.js test/edgeClick.test.js test/hiddenStore.test.js test/naming.test.js test/participant.test.js test/completion.test.js test/grammar.test.js test/semantic.test.js test/lookalike.test.js test/mergeClass.test.js test/showInDiagram.test.js test/chain.test.js",
     "test:contract": "tsc -p . && node --test test/mermaid.contract.test.js test/state.contract.test.js test/mermaid.parse.test.js test/collapse.contract.test.js test/sequence.contract.test.js test/class.contract.test.js test/export.contract.test.js test/preview.contract.test.js test/labels.contract.test.js test/edgeClick.contract.test.js test/naming.contract.test.js test/participant.contract.test.js test/lookalike.contract.test.js test/mergeClass.contract.test.js",
     "package": "tsc -p . && vsce package"
   },

@@ -14,6 +14,7 @@
   Export.svgText = (svg, base, background) => {
     const copy = svg.cloneNode(true);
     copy.querySelectorAll('.mm-selected').forEach(e => e.classList.remove('mm-selected'));
+    copy.querySelectorAll('.mm-toggle').forEach(e => e.remove());
     copy.setAttribute('viewBox', `${base.x} ${base.y} ${base.w} ${base.h}`);
     copy.setAttribute('width', String(base.w));
     copy.setAttribute('height', String(base.h));

@@ -210,3 +210,82 @@ test('Show in Diagram: i editorns och trädets högerklicksmeny, inte för box',
   assert.ok(!/\bbox\b/.test(when));
   assert.ok(src.includes(`registerCommand('${id}'`));
 });
+
+test('fäll ihop i bilden: Collapse/Expand All in Diagram i förhandsvisningens högerklicksmeny när det finns grupper', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
+  const titles = { 'mermaidTree.collapseAllInDiagram': 'Collapse All in Diagram', 'mermaidTree.expandAllInDiagram': 'Expand All in Diagram' };
+  for (const [id, title] of Object.entries(titles)) {
+    assert.equal(pkg.contributes.commands.find(c => c.command === id)?.title, title);
+    const when = (pkg.contributes.menus['webview/context'] ?? []).find(m => m.command === id)?.when ?? '';
+    assert.match(when, /webviewId == 'mermaidTree\.preview'/, id);
+    assert.match(when, /\bmermaidTreeGroups\b/, id);
+    assert.ok(src.includes(`registerCommand('${id}'`), id);
+  }
+});
+
+test('fäll ihop i bilden: förhandsvisningen får knapparna och fäller ihop gruppen när knappen klickas', () => {
+  const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
+  assert.ok(src.includes('groupToggles(') && src.includes('collapsibleGroups('), 'render skickar inte knapparna');
+  assert.ok(src.includes(`msg.type === 'toggleGroup'`), 'toggleGroup hanteras inte');
+});
+
+test('fokus på grupp: knappen på raden för grupper är fokus; kollaps finns i högerklicksmenyn, sequence-block behåller sin knapp', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
+  const items = pkg.contributes.menus['view/item/context'];
+  const whenFor = (cmd, inline) => items.filter(m => m.command === cmd && (m.group === 'inline') === inline).map(m => m.when).join(' ');
+  const has = (when, value) => new RegExp(`viewItem == ${value}\\b|[(|]${value}[|)]`).test(when);
+  for (const v of ['node', 'subgraph', 'subgraphCollapsed']) {
+    assert.ok(has(whenFor('mermaidTree.focusNeighbors', true), v), `fokusknapp för ${v}`);
+    assert.ok(has(whenFor('mermaidTree.showClosest', false), v), `Show Closest Objects i menyn för ${v}`);
+  }
+  // Knappen finns bara som knapp, så att menyn inte får två val som heter likadant.
+  assert.equal(whenFor('mermaidTree.focusNeighbors', false), '', 'Focus ska inte stå i högerklicksmenyn');
+  assert.ok(!has(whenFor('mermaidTree.collapseGroup', true), 'subgraph'), 'kollaps ska inte vara knappen för grupper');
+  assert.ok(!has(whenFor('mermaidTree.expandGroup', true), 'subgraphCollapsed'), 'fäll ut ska inte vara knappen för grupper');
+  assert.ok(has(whenFor('mermaidTree.collapseGroup', true), 'block'), 'block behåller kollapsknappen');
+  assert.ok(has(whenFor('mermaidTree.expandGroup', true), 'blockCollapsed'), 'block behåller fäll ut-knappen');
+  assert.ok(has(whenFor('mermaidTree.collapseGroup', false), 'subgraph'), 'kollaps i menyn för grupper');
+  assert.ok(has(whenFor('mermaidTree.expandGroup', false), 'subgraphCollapsed'), 'fäll ut i menyn för grupper');
+  assert.ok(src.includes('chain(m, { kind: target.kind, id: target.id }'), 'kommandot hanterar inte grupper');
+});
+
+test('Focus: knappen heter Focus och kör förvalet (in och ut, hela kedjan), inte ett sparat val', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
+  assert.equal(pkg.contributes.commands.find(c => c.command === 'mermaidTree.focusNeighbors')?.title, 'Focus');
+  const body = src.slice(src.indexOf(`registerCommand('mermaidTree.focusNeighbors'`));
+  const handler = body.slice(0, body.indexOf('}),'));
+  assert.match(handler, /defaultChain\(/, 'knappen ska använda förvalet');
+  assert.ok(!/globalState/.test(handler), 'knappen ska inte följa ett sparat val');
+});
+
+for (const [id, title] of [['mermaidTree.showChain', 'Custom Focus…'], ['mermaidTree.showClosest', 'Show Closest Objects']]) {
+  test(`${title}: i trädets högerklicksmeny för noder och grupper, inte som knapp`, () => {
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+    const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
+    assert.equal(pkg.contributes.commands.find(c => c.command === id)?.title, title);
+    const entries = pkg.contributes.menus['view/item/context'].filter(m => m.command === id);
+    assert.equal(entries.length, 1);
+    assert.notEqual(entries[0].group, 'inline');
+    for (const v of ['node', 'subgraph', 'subgraphCollapsed']) assert.ok(new RegExp(`[(|]${v}[|)]`).test(entries[0].when), v);
+    assert.equal(pkg.contributes.menus.commandPalette.find(m => m.command === id)?.when, 'false');
+    assert.ok(src.includes(`registerCommand('${id}'`) && src.includes('chain('));
+  });
+}
+
+test('Show Closest Objects: ett steg in och ut, som det tidigare fokuset', () => {
+  const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
+  const body = src.slice(src.indexOf(`registerCommand('mermaidTree.showClosest'`));
+  assert.match(body.slice(0, body.indexOf('}),')), /'both', 1\)/);
+});
+
+test('fokus: Focus, Show Closest Objects och Custom Focus… anpassar vyn till det som syns kvar', () => {
+  const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
+  for (const id of ['mermaidTree.focusNeighbors', 'mermaidTree.showClosest', 'mermaidTree.showChain']) {
+    const body = src.slice(src.indexOf(`registerCommand('${id}'`));
+    assert.match(body.slice(0, body.indexOf('}),')), /preview\.focus\(target\.kind, target\.id, true\)/, id);
+  }
+  assert.match(src, /type: 'focus', kind, id, fit/, 'fit skickas inte till förhandsvisningen');
+});

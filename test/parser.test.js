@@ -158,3 +158,35 @@ test('%% inuti citattecken är ingen kommentar', () => {
   assert.deepEqual(edgeList(m), ['A->B']);
   assert.equal(m.nodes.get('A').label, '50%% rabatt');
 });
+
+// ------------------------------------------------------------ fokus på en grupp
+
+const { groupNeighborhood } = require('../out/parser');
+const { parseDiagram: parseAny } = require('../out/diagram');
+
+test('fokus på grupp: allt i gruppen, även i grupper inuti, och det som har pilar till gruppen eller dess innehåll', () => {
+  const m = parseAny(`stateDiagram-v2
+  [*] --> Idle
+  Idle --> Busy
+  state Busy {
+    [*] --> Work
+    Work --> Wait
+    state Inner {
+      deep
+    }
+  }
+  Wait --> Fail
+  Fail --> Done
+  state Other {
+    o1
+  }
+  Other --> Idle`);
+  const keep = groupNeighborhood(m, 'Busy');
+  for (const id of ['Busy', 'Work', 'Wait', 'Inner', 'deep', 'Idle', 'Fail']) assert.ok(keep.has(id), `saknar ${id}`);
+  for (const id of ['Done', 'Other', 'o1']) assert.ok(!keep.has(id), `${id} ska döljas`);
+});
+
+test('fokus på grupp: subgraf i flowchart', () => {
+  const m = parseAny('flowchart LR\n  subgraph S\n    a --> b\n  end\n  b --> c\n  c --> d\n  x --> a');
+  assert.deepEqual([...groupNeighborhood(m, 'S')].filter(id => m.nodes.has(id)).sort(), ['a', 'b', 'c', 'x']);
+});

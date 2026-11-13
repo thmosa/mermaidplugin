@@ -67,6 +67,32 @@ for (const { name, model } of samples) {
     await assertMatches(model, new Set([...model.subgraphs.keys()].map(collapseKey)), `${name} alla hopfällda`);
   });
 
+  test(`kontrakt kedja ${name}: Focus från varje grupp: ut, in och in och ut`, async () => {
+    const { chain } = require('../out/chain');
+    for (const sg of model.subgraphs.keys()) {
+      for (const [dir, steps] of [['follow', Infinity], ['against', Infinity], ['both', 2], ['both', Infinity]]) {
+        const keep = chain(model, { kind: 'subgraph', id: sg }, dir, steps);
+        await assertMatches(model, new Set([...model.nodes.keys()].filter(n => !keep.has(n)).map(nodeKey)), `${name} kedja ${dir} ${steps} ${sg}`);
+      }
+    }
+  });
+
+  test(`kontrakt kedja ${name}: Focus från varje nod: in och ut, hela kedjan`, combos(model), async () => {
+    const { chain } = require('../out/chain');
+    for (const id of model.nodes.keys()) {
+      const keep = chain(model, { kind: 'node', id }, 'both', Infinity);
+      await assertMatches(model, new Set([...model.nodes.keys()].filter(n => !keep.has(n)).map(nodeKey)), `${name} kedja ${id}`);
+    }
+  });
+
+  test(`kontrakt fokus ${name}: fokus på varje grupp (gruppen och det som har pilar till den)`, async () => {
+    const { groupNeighborhood } = require('../out/parser');
+    for (const sg of model.subgraphs.keys()) {
+      const keep = groupNeighborhood(model, sg);
+      await assertMatches(model, new Set([...model.nodes.keys()].filter(n => !keep.has(n)).map(nodeKey)), `${name} fokus ${sg}`);
+    }
+  });
+
   test(`kontrakt hopfällning ${name}: hopfälld grupp och en dold nod`, combos(model), async () => {
     for (const sg of model.subgraphs.keys()) {
       for (const id of model.nodes.keys()) {

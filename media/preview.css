@@ -84,6 +84,24 @@ body {
   cursor: pointer;
 }
 
+/* Knappen för att fälla ihop och ut en grupp. #stage svg g.mm-toggle så att Mermaids egna regler för
+   rect i kluster och noder (#mmdN [data-look="neo"].node rect …) inte vinner. */
+#stage svg g.mm-toggle { cursor: pointer; }
+#stage svg g.mm-toggle rect.mm-toggle-bg {
+  fill: var(--vscode-editorWidget-background, #f3f3f3);
+  stroke: var(--vscode-editorWidget-border, #8888);
+  stroke-width: 1;
+  filter: none;
+}
+#stage svg g.mm-toggle:hover rect.mm-toggle-bg { fill: var(--vscode-toolbar-hoverBackground, #ddd); }
+#stage svg g.mm-toggle .mm-toggle-collapse,
+#stage svg g.mm-toggle .mm-toggle-expand {
+  fill: none;
+  stroke: var(--vscode-foreground, #333);
+  stroke-width: 1.5;
+  filter: none;
+}
+
 .mm-selected {
   filter: drop-shadow(0 0 4px var(--vscode-focusBorder, #0078d4)) drop-shadow(0 0 2px var(--vscode-focusBorder, #0078d4));
 }

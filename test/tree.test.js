@@ -167,3 +167,51 @@ test('sök: under sökning börjar grupperna utfällda så att träffarna syns',
   assert.equal(initialState({ kind: 'edgeGroup' }, true), 'expanded');
   assert.equal(initialState({ kind: 'node', id: 'Idle' }, true), 'none');
 });
+
+// ------------------------------------------------------------ knappar och allt hopfällt i bilden
+
+const { groupToggles, collapsibleGroups } = require('../out/tree');
+
+const seqBlocks = parseDiagram(`sequenceDiagram
+  box Front
+    participant A
+  end
+  participant B
+  alt ok
+    A ->> B: hej
+  else fel
+    loop igen
+      B ->> A: svar
+    end
+  end
+  rect rgb(200, 200, 200)
+    A ->> B: x
+  end`);
+
+test('knappar i bilden: varje grupp i state diagram, med om den är hopfälld', () => {
+  assert.deepEqual(groupToggles(state, new Set(['c:Fail'])), [
+    { id: 'Busy', collapsed: false }, { id: 'Inner', collapsed: false }, { id: 'Fail', collapsed: true },
+  ]);
+});
+
+test('knappar i bilden: flowchart och class diagram har knappar på subgrafer och namespaces', () => {
+  const flow = parseDiagram('flowchart LR\n  subgraph S\n    a\n  end\n  a --> b');
+  assert.deepEqual(groupToggles(flow, new Set()), [{ id: 'S', collapsed: false }]);
+  const cls = parseDiagram('classDiagram\n  namespace Shop {\n    class Order\n  }\n  Order --> Kund');
+  assert.deepEqual(groupToggles(cls, new Set(['c:Shop'])), [{ id: 'Shop', collapsed: true }]);
+});
+
+test('knappar i bilden: sequence har inga (blocken fälls ihop med klick på alt, loop …, och box kan inte fällas ihop)', () => {
+  assert.deepEqual(groupToggles(seqBlocks, new Set()), []);
+});
+
+test('fäll ihop allt: alla grupper, även de inuti andra', () => {
+  assert.deepEqual(collapsibleGroups(state), ['Busy', 'Inner', 'Fail']);
+});
+
+test('fäll ihop allt: i sequence alla block men inte grenarna och inte box', () => {
+  const ids = collapsibleGroups(seqBlocks);
+  assert.ok(ids.length === 3, `fick ${JSON.stringify(ids)}`);
+  assert.ok(ids.every(id => seqBlocks.blocks.has(id) && !seqBlocks.blocks.get(id).section), JSON.stringify(ids));
+  assert.deepEqual(ids.map(id => seqBlocks.blocks.get(id).kind).sort(), ['alt', 'loop', 'rect']);
+});

@@ -1,7 +1,7 @@
 // Arbetsträdets struktur: vilka rader som finns och hur de hänger ihop. Rena funktioner
 // utan vscode, så att de kan testas direkt. extension.ts gör om dem till TreeItems.
 
-import { DiagramModel } from './parser';
+import { DiagramModel, collapseKey } from './parser';
 import { SequenceModel } from './sequenceParser';
 
 export type Item =
@@ -116,4 +116,19 @@ export function parentOf(model: DiagramModel, item: Item): Item | undefined {
 export function initialState(item: Item, searching = false): 'collapsed' | 'expanded' | 'none' {
   const group = item.kind === 'subgraph' || item.kind === 'edgeGroup' || item.kind === 'participants' || item.kind === 'block';
   return !group ? 'none' : searching ? 'expanded' : 'collapsed';
+}
+
+/**
+ * Grupperna som får en knapp i bilden för att fällas ihop eller ut, och om de är hopfällda nu.
+ * Sequence har inga: blocken fälls ihop med klick på alt, loop …, och box kan inte fällas ihop.
+ */
+export function groupToggles(model: DiagramModel, hidden: ReadonlySet<string>): { id: string; collapsed: boolean }[] {
+  if (isSequence(model)) return [];
+  return [...model.subgraphs.keys()].map(id => ({ id, collapsed: hidden.has(collapseKey(id)) }));
+}
+
+/** Allt som fälls ihop av Collapse All in Diagram: alla grupper, och i sequence alla block utom grenarna. */
+export function collapsibleGroups(model: DiagramModel): string[] {
+  if (isSequence(model)) return [...model.blocks].filter(([, b]) => !b.section).map(([id]) => id);
+  return [...model.subgraphs.keys()];
 }

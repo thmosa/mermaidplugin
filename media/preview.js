@@ -36,6 +36,8 @@
   let rects = [];
   let sections = {};          // block-id → grenarna som ritas, i sectionTitle-ordning
   let collapsed = [];
+  // Grupper (inte sequence) som får en knapp för att fällas ihop eller ut: [{id, collapsed}].
+  let toggles = [];
   let lastText = '';
   let renderSeq = 0;
   let animation = 0;
@@ -230,12 +232,61 @@
     return same.length ? same[Math.min(nth, same.length - 1)] : -1;
   }
 
+  // Ett fokus som kommer medan bilden ritas om väntar tills den är klar; annars flyttas vyn på den gamla
+  // bilden och den nya återställer zoomen.
+  let rendering = false;
+  let pendingFocus = null;
+
+  /** fit: hela det som syns (efter fokus är det kedjan) med elementet markerat; annars zooma till elementet. */
+  function applyFocus(msg) {
+    if (!msg.fit) { focusElement(msg.kind, msg.id); return; }
+    selected = { kind: msg.kind, id: msg.id };
+    highlight();
+    fitTo('all');
+  }
+
   function focusElement(kind, id) {
     selected = { kind, id };
     const el = highlight();
     if (!el || !view) return;
     // En piltext är liten: zooma som till en nod, inte så att den fyller fönstret.
     animateTo(Zoom.focus(view, size(), elementBox(el), kind === 'edgeText' ? 'node' : kind));
+  }
+
+  // ------------------------------------------------------------ knapp för att fälla ihop och ut
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const TOGGLE_SIZE = 14;
+
+  const svgEl = (tag, attrs) => {
+    const e = document.createElementNS(SVG_NS, tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+    return e;
+  };
+
+  /**
+   * En liten knapp i varje grupps övre högra hörn: minimera på en utfälld grupp (ett kluster),
+   * maximera på en hopfälld (som ritas som en nod, och där sitter knappen på hörnet).
+   */
+  function addToggles() {
+    const s = TOGGLE_SIZE;
+    for (const t of toggles) {
+      const el = findElement('subgraph', t.id);
+      if (!el || el.matches(CLUSTER_SEL) === t.collapsed) continue;
+      const box = el.getBBox();
+      const x = t.collapsed ? box.x + box.width - s / 2 : box.x + box.width - s - 4;
+      const y = t.collapsed ? box.y - s / 2 : box.y + 4;
+      const g = svgEl('g', { class: 'mm-toggle', transform: `translate(${x} ${y})` });
+      g.dataset.id = t.id;
+      g.dataset.collapsed = String(t.collapsed);
+      const title = svgEl('title', {});
+      title.textContent = t.collapsed ? 'Expand' : 'Collapse';
+      const symbol = t.collapsed
+        ? svgEl('rect', { class: 'mm-toggle-expand', x: 3.5, y: 3.5, width: s - 7, height: s - 7 })
+        : svgEl('path', { class: 'mm-toggle-collapse', d: `M3.5 ${s / 2} H${s - 3.5}` });
+      g.append(title, svgEl('rect', { class: 'mm-toggle-bg', width: s, height: s, rx: 2 }), symbol);
+      el.appendChild(g);
+    }
   }
 
   // ------------------------------------------------------------ zoomen behålls vid omrendering
@@ -305,10 +356,12 @@
     pending = null;
     const seq = ++renderSeq;
     const id = `mmd${seq}`;
+    rendering = true;
     mermaid.initialize(mermaidConfig());
     try {
       const { svg: code } = await mermaid.render(id, text);
       if (seq !== renderSeq) return; // en nyare rendering har redan startat
+      rendering = false;
       const anchor = fitNext ? null : captureAnchor();
       fitNext = false;
       const edgeTextsBefore = selected?.kind === 'edgeText' ? Labels.edgeTexts(svg).map(t => t.text) : null;
@@ -331,12 +384,16 @@
       svg.setAttribute('width', '100%');
       svg.setAttribute('height', '100%');
       restoreAnchor(anchor);
+      addToggles();
       highlight();
       errorBox.hidden = true;
+      if (pendingFocus) { const f = pendingFocus; pendingFocus = null; applyFocus(f); }
       vscode.postMessage({ type: 'rendered' });
     } catch (err) {
       document.getElementById('d' + id)?.remove();
       if (seq !== renderSeq) return;
+      rendering = false;
+      pendingFocus = null;
       errorBox.textContent = String(err && err.message || err);
       errorBox.hidden = false;
     }
@@ -399,6 +456,8 @@
     if (!wasClick) return;
     // Pointer capture gör att e.target är stage, så leta upp elementet under pekaren.
     const under = document.elementFromPoint(e.clientX, e.clientY);
+    const toggle = under && under.closest('.mm-toggle');
+    if (toggle) { vscode.postMessage({ type: 'toggleGroup', id: toggle.dataset.id }); return; }
     const hit = under && identify(under);
     if (hit) {
       selected = { kind: hit.kind, id: hit.id };
@@ -447,6 +506,9 @@
       rects = msg.rects || [];
       sections = msg.sections || {};
       collapsed = msg.collapsed || [];
+      toggles = msg.toggles || [];
+      // Högerklicksmenyn (webview/context) visar Collapse/Expand All bara när det finns grupper.
+      stage.dataset.vscodeContext = JSON.stringify({ preventDefaultContextMenuItems: true, mermaidTreeGroups: (msg.collapsible || 0) > 0 });
       // Menyn visar inställningen; ett val i menyn gäller tills inställningen ändras.
       const setting = msg.theme || 'auto';
       if (setting !== settingTheme) { settingTheme = setting; themeSelect.value = setting; }
@@ -454,7 +516,8 @@
       if (msg.fit) { fitNext = true; selected = null; }
       render(msg.text);
     }
-    if (msg.type === 'focus') focusElement(msg.kind, msg.id);
+    // En dold panel ritar först när den syns igen (pending); vänta på det också.
+    if (msg.type === 'focus') { if (rendering || pending !== null) pendingFocus = msg; else applyFocus(msg); }
     if (msg.type === 'clearSelection') { selected = null; highlight(); }
     if (msg.type === 'focusEdge' && svg) {
       const i = edgeTextIndex(msg);

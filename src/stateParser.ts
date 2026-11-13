@@ -199,10 +199,17 @@ export function filterState(model: StateModel, hidden: ReadonlySet<string>): str
   const skip = (sg: string | undefined) => inDropped(sg) || insideCollapsed(sg);
   const gone = (id: string) => vis.isNodeHidden(id) || (model.subgraphs.has(id) && vis.isSubgraphHidden(id)) || absorbed(id);
 
-  // Tillstånd som syns på annat håll behöver ingen extra deklaration när en övergång försvinner.
+  // Tillstånd som syns på annat håll i sin egen grupp behöver ingen extra deklaration när en övergång
+  // försvinner. En pil utanför gruppen räknas inte: Mermaid ritar tillståndet där det nämns först.
   const shown = new Set<string>();
-  for (const e of drawnEdges) { shown.add(e.from); shown.add(e.to); }
-  for (const l of model.lines) if (l.kind === 'decl' && model.nodes.has(l.id) && !gone(l.id) && !skip(l.sg)) shown.add(l.id);
+  const inOwnGroup = (id: string, sg: string | undefined) => model.nodes.get(id)?.subgraph === sg;
+  let shownIdx = 0;
+  for (const l of model.lines) {
+    if (l.kind === 'trans') {
+      const k = col.kept.get(model.edges[shownIdx++].index);
+      if (k && !skip(l.sg)) for (const id of [k.from, k.to]) if (inOwnGroup(id, l.sg)) shown.add(id);
+    } else if (l.kind === 'decl' && model.nodes.has(l.id) && !gone(l.id) && !skip(l.sg) && inOwnGroup(l.id, l.sg)) shown.add(l.id);
+  }
 
   // Ritas id:t alls efter filtreringen? Klasser och anteckningar på något som inte ritas ger fel i Mermaid.
   const touched = new Set(drawnEdges.flatMap(e => [e.from, e.to]));

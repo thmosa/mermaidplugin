@@ -166,3 +166,17 @@ W6_F2 --> W7_Wait: trigger analytics worker for cohort analysis and retention me
         W10_Wait --> W10_F5: archive
         W10_F5 --> W10_Wait: archived to cold storage
     }
+
+    %% ========== FLÖDEN MELLAN WORKERS ==========
+    %% Inre states i olika workers som hänger ihop: order → lager → betalning → frakt → avisering.
+    W1_F1 --> W5_F1: reserve stock for new order
+    W5_F3_S2 --> W4_F1: stock locked, authorize payment
+    W4_F1 --> W8_F1: payment authorized, create shipping label
+    W4_F4 --> W5_F2: payment failed, release reserved stock
+    W1_F2 --> W4_F3: order cancelled, refund customer
+    W8_F1 --> W9_F1: notify customer that label is created
+    W8_F4 --> W4_F3: refund when return is registered
+    W2_F3_S2 --> W3_F1: send welcome email
+    W3F2 --> W9_F2: email bounced, fall back to sms
+    W4_F3 --> W10_F2: log refund in audit trail
+    W9_F4 --> W10_F1: log failed notification

@@ -4,6 +4,7 @@
 // annotationer på okända klasser, medlemsrader och tomma namespaces.
 
 import { DiagramModel, FlowNode, visibility, collapse, collapsedLabel } from './parser';
+import { arrowDirection } from './arrow';
 
 type Line =
   | { kind: 'raw'; text: string }
@@ -135,7 +136,7 @@ export function parseClass(text: string): ClassModel {
       const pair = `${from}->${to}`;
       const n = pairCount.get(pair) ?? 0;
       pairCount.set(pair, n + 1);
-      model.edges.push({ key: `${pair}#${n}`, index: model.edges.length, from, to, label: label?.trim() ?? '', line: i });
+      model.edges.push({ key: `${pair}#${n}`, index: model.edges.length, from, to, label: label?.trim() ?? '', line: i, dir: arrowDirection(arrow, 'class') });
       model.lines.push({ kind: 'rel', text, indent: indentOf(text), fromCard, arrow, toCard, label });
       continue;
     }

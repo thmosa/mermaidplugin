@@ -86,7 +86,7 @@ function labels(text, fix) {
 
 test('kontrakt: Mermaid låter breda etiketter sticka ut ur sitt sammansatta tillstånd', async () => {
   const r = await labels(LARGE, false);
-  assert.ok(r.outside.includes('capture payment after fulfillment confirmation from WMS'), r.outside.join(', '));
+  assert.ok(r.outside.includes('return label created and attached to original order for reverse logistics'), r.outside.join(', '));
 });
 
 test('etiketter: fitClusters gör grupperna stora nog, utan att flytta etiketterna', async () => {
