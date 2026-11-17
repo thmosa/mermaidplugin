@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.2
+
+- **Long group titles**: a group with a long title no longer covers its neighbours. It first grows into free space
+  beside it, so with dagre the whole title usually shows. Where there is no room the group keeps to its space and
+  the title is shortened with …; hover to see all of it. Turn this off with
+  `mermaidTree.preview.shortenLongGroupTitles` to draw groups exactly as Mermaid does.
+- An outer group holds an inner group that grew for its title, and the collapse button no longer covers titles.
+- **Letter case quick fix**: names that differ only in letter case get a quick fix (Ctrl+.) that uses one spelling
+  everywhere; the one that follows `mermaidTree.namingStyle` comes first.
+- **Ctrl+K V** (Cmd+K V on macOS) opens the preview beside a Mermaid file, as for Markdown.
+- **Show All** in the tree's title bar has a double check mark instead of an eye, which looked like the preview.
+- Fix: titles were shortened too much when the preview was zoomed out.
+
 ## 0.7.1
 
 - **Shared states**: a warning when the same state is used inside two composite states. Mermaid draws it as one
