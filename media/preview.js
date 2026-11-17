@@ -370,7 +370,7 @@
       // En vald piltext är bara ett löpnummer: ändras piltexterna skulle numret peka på en annan pil.
       if (edgeTextsBefore && edgeTextsBefore.join('\n') !== Labels.edgeTexts(svg).map(t => t.text).join('\n')) selected = null;
       Labels.spread(svg, Labels.axisFor(text));
-      const grown = Labels.fitClusters(svg);
+      const grown = Labels.fitClusters(svg, 4, TOGGLE_SIZE + 8);
       const vb = (svg.getAttribute('viewBox') || '0 0 100 100').split(/[\s,]+/).map(Number);
       base = { x: vb[0], y: vb[1], w: vb[2] || 1, h: vb[3] || 1 };
       // En grupp längst ut kan ha vuxit utanför Mermaids ram.

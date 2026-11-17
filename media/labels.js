@@ -94,13 +94,23 @@
    * Mermaid räknar ut storleken på en grupp (subgraf, sammansatt tillstånd) utan kantetikettens
    * utfyllnad, så en bred etikett vid kanten sticker ut. Gör gruppens rutor större så att de
    * etiketter vars mitt ligger i gruppen ryms; etiketterna och pilarna flyttas inte.
+   * Mermaid gör inte heller en yttre grupp större när en inre grupp blivit bred av sin titel, så
+   * grupperna tas från den minsta till den största och var och en rymmer de inre grupperna som de
+   * blev. `titleRoom` (skärm-px) hålls fritt på båda sidor om titeln, för knappen i hörnet.
    * Ger antalet grupper som växte. Kräver DOM (webviewen).
    */
-  Labels.fitClusters = (svg, margin = 4) => {
+  Labels.fitClusters = (svg, margin = 4, titleRoom = 0) => {
     const scale = (svg.getScreenCTM() || { a: 1 }).a;
     const toBox = r => ({ x: r.left, y: r.top, w: r.width, h: r.height });
+    // Gruppens ruta: ramarnas yttre kant (titeln räknas som innehåll nedan).
+    const frame = g => {
+      const rs = [...g.querySelectorAll('rect')].map(r => r.getBoundingClientRect()).filter(r => r.width || r.height);
+      if (!rs.length) return toBox(g.getBoundingClientRect());
+      const x = Math.min(...rs.map(r => r.left)), y = Math.min(...rs.map(r => r.top));
+      return { x, y, w: Math.max(...rs.map(r => r.right)) - x, h: Math.max(...rs.map(r => r.bottom)) - y };
+    };
     const clusters = [...svg.querySelectorAll('g.cluster, g.statediagram-cluster')]
-      .map(g => ({ g, box: toBox(g.getBoundingClientRect()), labels: [] }));
+      .map(g => ({ g, box: frame(g), labels: [] }));
     for (const el of svg.querySelectorAll('g.edgeLabel')) {
       if (!el.textContent.trim()) continue;
       const l = toBox(el.getBoundingClientRect());
@@ -114,9 +124,50 @@
       if (own) own.labels.push(l);
     }
     let grown = 0;
-    for (const { g, box, labels } of clusters) {
-      const d = Labels.growth(box, labels, margin * scale);
-      if (Math.max(d.left, d.right, d.top, d.bottom) < 0.5) continue;
+    // En inre grupp ligger alltid inom den yttre på höjden (det är bara bredden Mermaid missar),
+    // så grupperna tas från den lägsta till den högsta, och "ligger i" avgörs av höjden och mitten.
+    const inside = (inner, outer) => {
+      const cx = inner.x + inner.w / 2;
+      return inner.h < outer.h && cx > outer.x && cx < outer.x + outer.w
+        && inner.y >= outer.y - 1 && inner.y + inner.h <= outer.y + outer.h + 1;
+    };
+    clusters.sort((a, b) => a.box.h - b.box.h);
+    // Noderna (states, noder), som innehåll i sin grupp och som grannar till andra grupper.
+    const nodes = [...svg.querySelectorAll('g.node')].map(n => toBox(n.getBoundingClientRect())).filter(b => b.w && b.h);
+    clusters.forEach((c, i) => {
+      const { g, labels } = c;
+      const box = frame(g);
+      const content = [...labels];
+      // Mindre grupper i den här, som de blev när de själva växte.
+      for (const smaller of clusters.slice(0, i)) {
+        const b = frame(smaller.g);
+        if (inside(b, box)) content.push(b);
+      }
+      const d = Labels.growth(box, content, margin * scale);
+      // Mermaid gör en grupp bred nog för hela titeln men lägger grannarna som om den vore smal, så
+      // den kan gå in i dem. Krymp den då till platsen som finns, men aldrig in i innehållet; titeln
+      // kortas sedan med … (fitTitle).
+      const centre = box.x + box.w / 2;
+      const own = [...content, ...nodes.filter(n => n.x + n.w / 2 > box.x && n.x + n.w / 2 < box.x + box.w
+        && n.y + n.h / 2 > box.y && n.y + n.h / 2 < box.y + box.h)];
+      const pad = 2 * margin * scale;
+      const others = [
+        ...clusters.filter(o => o !== c).map(o => frame(o.g)).filter(o => !inside(o, box) && !inside(box, o)),
+        ...nodes.filter(n => !own.includes(n)),
+      ].filter(o => o.y < box.y + box.h && box.y < o.y + o.h);
+      if (own.length) {
+        const leftWall = Math.max(-Infinity, ...others.filter(o => o.x + o.w / 2 < centre).map(o => o.x + o.w + margin * scale));
+        const rightWall = Math.min(Infinity, ...others.filter(o => o.x + o.w / 2 >= centre).map(o => o.x - margin * scale));
+        const shrinkLeft = Math.min(leftWall - box.x, Math.min(...own.map(o => o.x)) - pad - box.x);
+        const shrinkRight = Math.min(box.x + box.w - rightWall, box.x + box.w - pad - Math.max(...own.map(o => o.x + o.w)));
+        if (d.left <= 0 && shrinkLeft > 0.5) d.left = -shrinkLeft;
+        if (d.right <= 0 && shrinkRight > 0.5) d.right = -shrinkRight;
+      }
+      const title = g.querySelector(':scope > g.cluster-label');
+      if (Math.max(Math.abs(d.left), Math.abs(d.right), d.top, d.bottom) < 0.5) {
+        if (title) fitTitle(title, frame(g), titleRoom);
+        return;
+      }
       // Rutor som ligger mot gruppens kant följer med åt det hållet (ram, rubrikfält, innehåll).
       for (const rect of g.querySelectorAll('rect')) {
         const r = rect.getBoundingClientRect();
@@ -133,7 +184,6 @@
         rect.setAttribute('height', rect.height.baseVal.value + (top + bottom) / k);
       }
       // Rubriken hålls mitt på gruppen och överst.
-      const title = g.querySelector(':scope > g.cluster-label');
       if (title) {
         const k = (title.parentNode.getScreenCTM() || { a: 1 }).a;
         const m = title.transform.baseVal.consolidate()?.matrix;
@@ -142,10 +192,55 @@
         title.setAttribute('transform', m
           ? `matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e + dx} ${m.f + dy})`
           : `translate(${dx} ${dy})`);
+        fitTitle(title, frame(g), titleRoom);
       }
       grown++;
-    }
+    });
     return grown;
+  };
+
+  /**
+   * Gruppens titel ryms i gruppen med `room` (skärm-px) fritt på båda sidor, för knappen i hörnet.
+   * Är den för bred kortas den med … och hela titeln visas när musen hålls över den. Gruppen görs
+   * inte bredare för titeln: Mermaid lägger grannarna tätt intill, så den skulle växa in i dem.
+   */
+  const fitTitle = (title, box, room) => {
+    // Texten som syns: HTML-etikett (foreignObject) eller SVG-text.
+    const shown = title.querySelector('p, span.nodeLabel, div') || title.querySelector('text');
+    if (!shown) return;
+    const width = () => (shown.localName === 'div' || shown.closest('foreignObject')
+      ? (() => { const r = document.createRange(); r.selectNodeContents(shown); return r.getBoundingClientRect().width; })()
+      : shown.getBoundingClientRect().width);
+    const max = Math.max(box.w - 2 * room, 0);
+    const texts = [];
+    const walk = n => { if (n.nodeType === 3) { if (n.data.trim()) texts.push(n); } else n.childNodes.forEach(walk); };
+    walk(shown);
+    if (texts.length && width() > max + 0.5) {
+      const full = texts.map(t => t.data).join(' ').replace(/\s+/g, ' ').trim();
+      texts.slice(1).forEach(t => { t.data = ''; });
+      // Längsta början av titeln som ryms tillsammans med …
+      let lo = 0, hi = full.length;
+      while (lo < hi) {
+        const mid = Math.ceil((lo + hi) / 2);
+        texts[0].data = full.slice(0, mid).trimEnd() + '…';
+        if (width() <= max) lo = mid; else hi = mid - 1;
+      }
+      texts[0].data = full.slice(0, lo).trimEnd() + '…';
+      const tip = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      tip.textContent = full;
+      title.insertBefore(tip, title.firstChild);
+      shown.closest('div')?.setAttribute('title', full);
+    }
+    // Ny bredd: håll titeln mitt på gruppen och ramen kring HTML-texten lika bred som texten.
+    const fo = title.querySelector('foreignObject');
+    if (fo) fo.setAttribute('width', width() / (fo.getScreenCTM() || { a: 1 }).a + 2);
+    const r = (fo || shown).getBoundingClientRect();
+    const dx = (box.x + box.w / 2 - (r.left + r.width / 2)) / (title.parentNode.getScreenCTM() || { a: 1 }).a;
+    if (Math.abs(dx) < 0.25) return;
+    const m = title.transform.baseVal.consolidate()?.matrix;
+    title.setAttribute('transform', m
+      ? `matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e + dx} ${m.f})`
+      : `translate(${dx} 0)`);
   };
 
   /** Texten som den syns: radbrytningar (br, tspan-rader) blir mellanslag. */

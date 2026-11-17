@@ -509,3 +509,67 @@ test('delad state: efter snabbfixen (eget namn i gruppen) ritar Mermaid en state
   }), fixes);
   assert.deepEqual(wrong, []);
 });
+
+// ------------------------------------------------------------ lång titel på en inre grupp
+
+test('grupper: en yttre grupp rymmer en inre grupp med lång titel, och knappen täcker inte titlarna', async () => {
+  const text = `stateDiagram-v2
+  x --> Outer
+  state Outer {
+    state "A very long title for the inner composite state here" as Inner {
+      a --> b
+    }
+  }`;
+  await sendRender({ text, toggles: [{ id: 'Outer', collapsed: false }, { id: 'Inner', collapsed: false }], collapsible: 2, fit: true });
+  const r = await page.evaluate(() => {
+    const box = id => window.__preview.findElement('subgraph', id).querySelector('rect').getBoundingClientRect();
+    const [outer, inner] = [box('Outer'), box('Inner')];
+    const overlaps = id => {
+      const g = window.__preview.findElement('subgraph', id);
+      const title = [...g.querySelectorAll(':scope > g.cluster-label, :scope > text, :scope > g > text')].map(t => t.getBoundingClientRect()).find(b => b.width > 0);
+      const btn = g.querySelector(':scope > .mm-toggle')?.getBoundingClientRect();
+      return !!(title && btn && title.right > btn.left - 1 && title.left < btn.right && title.bottom > btn.top && title.top < btn.bottom);
+    };
+    return {
+      innerInsideOuter: inner.left >= outer.left - 0.5 && inner.right <= outer.right + 0.5,
+      buttonOverTitle: { Outer: overlaps('Outer'), Inner: overlaps('Inner') },
+    };
+  });
+  assert.deepEqual(r, { innerInsideOuter: true, buttonOverTitle: { Outer: false, Inner: false } });
+});
+
+test('grupper: en lång titel på en inre grupp kortas med … i stället för att gruppen växer in i grannarna', async () => {
+  const title = 'Faskorinaasdfasdfasd sdafsdaf sadfsdaf df';
+  // Som i samples/LargeState-old.mmd: flera grupper bredvid varandra, med smala namn runt den långa.
+  const group = (id, name) => `    state "${name}" as ${id} {\n      [*] --> ${id}1 : Go\n      ${id}1 --> ${id}2\n      ${id}2 --> ${id}3 : Next\n    }`;
+  const others = ['Rasken', 'Pelmora', 'Zandrik', 'Kordexa', 'Yelvani', 'Bromvex'];
+  const text = ['stateDiagram-v2', '  x --> Outer', '  state Outer {',
+    ...others.slice(0, 3).map((n, i) => group(`G${i}`, n)),
+    group('M', title),
+    ...others.slice(3).map((n, i) => group(`G${i + 3}`, n)),
+    '  }'].join('\n');
+  const ids = ['Outer', 'M', ...others.map((_, i) => `G${i}`)];
+  await sendRender({ text, toggles: ids.map(id => ({ id, collapsed: false })), collapsible: ids.length, fit: true });
+  const r = await page.evaluate(n => {
+    const frame = id => {
+      const rs = [...window.__preview.findElement('subgraph', id).querySelectorAll('rect')].map(r => r.getBoundingClientRect());
+      return {
+        left: Math.min(...rs.map(r => r.left)), right: Math.max(...rs.map(r => r.right)),
+        top: Math.min(...rs.map(r => r.top)), bottom: Math.max(...rs.map(r => r.bottom)),
+      };
+    };
+    const m = frame('M');
+    // Grannarna får inte överlappa den inre gruppen, åt något håll.
+    const hits = o => m.left < o.right - 0.5 && o.left < m.right - 0.5 && m.top < o.bottom - 0.5 && o.top < m.bottom - 0.5;
+    const label = window.__preview.findElement('subgraph', 'M').querySelector(':scope > g.cluster-label');
+    const shown = [...label.querySelectorAll('p, span, text, div')].map(e => e.getBoundingClientRect()).filter(b => b.width);
+    const textBox = { left: Math.min(...shown.map(b => b.left)), right: Math.max(...shown.map(b => b.right)) };
+    return {
+      overlapsNeighbours: Array.from({ length: n }, (_, i) => frame(`G${i}`)).some(hits),
+      titleInside: textBox.left >= m.left && textBox.right <= m.right,
+      shortened: /…$/.test(label.textContent.trim()),
+      tooltip: label.querySelector('title')?.textContent,
+    };
+  }, others.length);
+  assert.deepEqual(r, { overlapsNeighbours: false, titleInside: true, shortened: true, tooltip: title });
+});
