@@ -538,19 +538,38 @@ test('grupper: en yttre grupp rymmer en inre grupp med lång titel, och knappen 
   assert.deepEqual(r, { innerInsideOuter: true, buttonOverTitle: { Outer: false, Inner: false } });
 });
 
-test('grupper: en lång titel på en inre grupp kortas med … i stället för att gruppen växer in i grannarna', async () => {
-  const title = 'Faskorinaasdfasdfasd sdafsdaf sadfsdaf df';
+const LONG_TITLE = 'Faskorinaasdfasdfasd sdafsdaf sadfsdaf df';
+
+/**
+ * Ritar sju grupper bredvid varandra där M har en lång titel, och beskriver M. Med `sample` ritas i
+ * stället samples/LargeState-old.mmd med den långa titeln på FOM, tätt mellan Pelmora och Zandrik.
+ */
+async function longTitleGroup(settings = {}, layout = '', sample = false) {
+  const title = LONG_TITLE;
   // Som i samples/LargeState-old.mmd: flera grupper bredvid varandra, med smala namn runt den långa.
   const group = (id, name) => `    state "${name}" as ${id} {\n      [*] --> ${id}1 : Go\n      ${id}1 --> ${id}2\n      ${id}2 --> ${id}3 : Next\n    }`;
   const others = ['Rasken', 'Pelmora', 'Zandrik', 'Kordexa', 'Yelvani', 'Bromvex'];
-  const text = ['stateDiagram-v2', '  x --> Outer', '  state Outer {',
+  let text = ['stateDiagram-v2', '  x --> Outer', '  state Outer {',
     ...others.slice(0, 3).map((n, i) => group(`G${i}`, n)),
     group('M', title),
     ...others.slice(3).map((n, i) => group(`G${i + 3}`, n)),
     '  }'].join('\n');
-  const ids = ['Outer', 'M', ...others.map((_, i) => `G${i}`)];
-  await sendRender({ text, toggles: ids.map(id => ({ id, collapsed: false })), collapsible: ids.length, fit: true });
-  const r = await page.evaluate(n => {
+  let ids = ['Outer', 'M', ...others.map((_, i) => `G${i}`)];
+  let target = 'M';
+  let neighbours = others.map((_, i) => `G${i}`);
+  if (sample) {
+    const fs = require('node:fs');
+    text = fs.readFileSync(path.join(__dirname, '..', 'samples', 'LargeState-old.mmd'), 'utf8')
+      .replace(/state "[^"]*" as FOM/, `state "${title}" as FOM`);
+    ids = [...text.matchAll(/ as (w+) {/g)].map(m => m[1]);
+    target = 'FOM';
+    // Grupperna i Veltrix utom FOM (Veltrix själv ligger runt den).
+    neighbours = ['QOR', 'MUR', 'TAV', 'ROV', 'SUV', 'YEN', 'DRE'];
+  }
+  // Layoutmenyn utan change-händelse, så att bara sendRender ritar.
+  await page.evaluate(v => { document.getElementById('layout').value = v; }, layout);
+  await sendRender({ text, toggles: ids.map(id => ({ id, collapsed: false })), collapsible: ids.length, fit: true, ...settings });
+  const r = await page.evaluate(({ target, neighbours }) => {
     const frame = id => {
       const rs = [...window.__preview.findElement('subgraph', id).querySelectorAll('rect')].map(r => r.getBoundingClientRect());
       return {
@@ -558,18 +577,44 @@ test('grupper: en lång titel på en inre grupp kortas med … i stället för a
         top: Math.min(...rs.map(r => r.top)), bottom: Math.max(...rs.map(r => r.bottom)),
       };
     };
-    const m = frame('M');
+    const m = frame(target);
     // Grannarna får inte överlappa den inre gruppen, åt något håll.
     const hits = o => m.left < o.right - 0.5 && o.left < m.right - 0.5 && m.top < o.bottom - 0.5 && o.top < m.bottom - 0.5;
-    const label = window.__preview.findElement('subgraph', 'M').querySelector(':scope > g.cluster-label');
+    const label = window.__preview.findElement('subgraph', target).querySelector(':scope > g.cluster-label');
     const shown = [...label.querySelectorAll('p, span, text, div')].map(e => e.getBoundingClientRect()).filter(b => b.width);
-    const textBox = { left: Math.min(...shown.map(b => b.left)), right: Math.max(...shown.map(b => b.right)) };
+    const textBox = { left: Math.min(...shown.map(b => b.left)), right: Math.max(...shown.map(b => b.right)), top: Math.min(...shown.map(b => b.top)), bottom: Math.max(...shown.map(b => b.bottom)) };
+    const btn = window.__preview.findElement('subgraph', target).querySelector(':scope > .mm-toggle')?.getBoundingClientRect();
     return {
-      overlapsNeighbours: Array.from({ length: n }, (_, i) => frame(`G${i}`)).some(hits),
+      overlapsNeighbours: neighbours.map(frame).some(hits),
       titleInside: textBox.left >= m.left && textBox.right <= m.right,
       shortened: /…$/.test(label.textContent.trim()),
       tooltip: label.querySelector('title')?.textContent,
+      buttonOverTitle: !!btn && textBox.right > btn.left - 1 && textBox.left < btn.right && textBox.bottom > btn.top && textBox.top < btn.bottom,
     };
-  }, others.length);
-  assert.deepEqual(r, { overlapsNeighbours: false, titleInside: true, shortened: true, tooltip: title });
+  }, { target, neighbours });
+  await page.evaluate(() => { document.getElementById('layout').value = ''; });
+  return r;
+}
+
+test('grupper: en lång titel på en inre grupp kortas med … när gruppen ligger tätt mellan grannarna (ELK)', async () => {
+  assert.deepEqual(await longTitleGroup({}, '', true), { overlapsNeighbours: false, titleInside: true, shortened: true, tooltip: LONG_TITLE, buttonOverTitle: false });
+});
+
+test('grupper: finns det luft bredvid gruppen växer den i stället, och titeln visas hel', async () => {
+  // Här lägger ELK den långa gruppen i en egen rad med plats bredvid.
+  assert.deepEqual(await longTitleGroup(), { overlapsNeighbours: false, titleInside: true, shortened: false, tooltip: undefined, buttonOverTitle: false });
+});
+
+test('grupper: med shortenLongGroupTitles av ritas titeln som Mermaid gör, hel och utan …', async () => {
+  const r = await longTitleGroup({ shortenLongGroupTitles: false });
+  assert.deepEqual({ shortened: r.shortened, tooltip: r.tooltip }, { shortened: false, tooltip: undefined });
+  // Mermaid gör gruppen bredare än luckan, så den går in i grannarna.
+  assert.equal(r.overlapsNeighbours, true);
+});
+
+test('grupper: med dagre finns plats bredvid gruppen, så titeln visas hel och utan att knappen täcker den', async () => {
+  // dagre lägger luft mellan grupperna: gruppen får växa in i luften i stället för att titeln kortas.
+  assert.deepEqual(await longTitleGroup({}, 'dagre'), { overlapsNeighbours: false, titleInside: true, shortened: false, tooltip: undefined, buttonOverTitle: false });
+  // Också i LargeState-old, där ELK lägger gruppen tätt mellan grannarna.
+  assert.deepEqual(await longTitleGroup({}, 'dagre', true), { overlapsNeighbours: false, titleInside: true, shortened: false, tooltip: undefined, buttonOverTitle: false });
 });

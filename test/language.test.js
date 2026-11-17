@@ -122,17 +122,15 @@ test('grammatik: create och destroy i sequence diagram färgas', () => {
   for (const word of ['create', 'destroy']) assert.match(`  ${word} participant X`, re, word);
 });
 
-test('meny: kugghjulet sist i panelens rubrik öppnar tilläggets inställningar', () => {
+test('Quick Access: knappen Settings under Preview Diagram öppnar tilläggets inställningar', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const cmd = pkg.contributes.commands.find(c => c.command === 'mermaidTree.openSettings');
   assert.ok(cmd, 'kommandot saknas');
   assert.equal(cmd.title, 'Settings');
-  assert.equal(cmd.icon, '$(gear)');
-  const menu = pkg.contributes.menus['view/title'].filter(m => /^navigation/.test(m.group));
-  const order = g => Number(g.split('@')[1]);
-  const gear = menu.find(m => m.command === 'mermaidTree.openSettings');
-  assert.match(gear.when, /view == mermaidTree\.structure/);
-  assert.ok(menu.every(m => m === gear || order(m.group) < order(gear.group)), 'kugghjulet ska ligga sist');
+  // Knappen ligger i Quick Access, som alltid syns, och inte längre i trädets rubrik.
+  const welcome = pkg.contributes.viewsWelcome.find(w => w.view === 'mermaidTree.previewButton');
+  assert.match(welcome.contents, /^\[Preview Diagram\]\(command:mermaidTree\.openPreview\)\n\[Settings\]\(command:mermaidTree\.openSettings\)$/);
+  assert.ok(!pkg.contributes.menus['view/title'].some(m => m.command === 'mermaidTree.openSettings'), 'inte i trädets rubrik');
   // Kommandot öppnar inställningarna filtrerade på tillägget.
   const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
   assert.match(src, /registerCommand\('mermaidTree\.openSettings'[^]*?workbench\.action\.openSettings[^]*?@ext:/);
@@ -172,6 +170,17 @@ test('inställningar: tema och temafärger för förhandsvisningen, auto som sta
   const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
   assert.match(src, /type: 'render'[^\n]*theme/);
   assert.match(src, /affectsConfiguration\('mermaidTree\.preview'\)/);
+});
+
+test('inställningar: kortningen av grupptitlar går att stänga av, på som standard', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const setting = pkg.contributes.configuration.properties['mermaidTree.preview.shortenLongGroupTitles'];
+  assert.equal(setting?.type, 'boolean');
+  assert.equal(setting.default, true);
+  assert.match(setting.description, /^Shorten long group titles with … /);
+  // Skickas med varje diagram till förhandsvisningen.
+  const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
+  assert.match(src, /shortenLongGroupTitles: cfg\.get<boolean>\('shortenLongGroupTitles', true\)/);
 });
 
 test('kombinera klassdiagram: kommando i paletten och i högerklicksmenyn för klassdiagram, skrivskyddad vy', () => {

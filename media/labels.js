@@ -96,11 +96,16 @@
    * etiketter vars mitt ligger i gruppen ryms; etiketterna och pilarna flyttas inte.
    * Mermaid gör inte heller en yttre grupp större när en inre grupp blivit bred av sin titel, så
    * grupperna tas från den minsta till den största och var och en rymmer de inre grupperna som de
-   * blev. `titleRoom` (skärm-px) hålls fritt på båda sidor om titeln, för knappen i hörnet.
+   * blev. `titleRoom` (i diagrammets enheter, som knappen) hålls fritt på båda sidor om titeln, för knappen i hörnet, och
+   * `opts.titles` (på som standard) håller långa titlar inom gruppens lucka (se fitTitle).
    * Ger antalet grupper som växte. Kräver DOM (webviewen).
    */
-  Labels.fitClusters = (svg, margin = 4, titleRoom = 0) => {
+  Labels.fitClusters = (svg, margin = 4, titleRoom = 0, opts = {}) => {
+    // Med { titles: false } ritas grupptitlarna som Mermaid gör: ingen krympning, ingen kortning.
+    const titles = opts.titles !== false;
     const scale = (svg.getScreenCTM() || { a: 1 }).a;
+    // Knappen ritas i diagrammets enheter och följer zoomen; resten här räknas i skärm-px.
+    const room = titleRoom * scale;
     const toBox = r => ({ x: r.left, y: r.top, w: r.width, h: r.height });
     // Gruppens ruta: ramarnas yttre kant (titeln räknas som innehåll nedan).
     const frame = g => {
@@ -144,28 +149,46 @@
         if (inside(b, box)) content.push(b);
       }
       const d = Labels.growth(box, content, margin * scale);
-      // Mermaid gör en grupp bred nog för hela titeln men lägger grannarna som om den vore smal, så
-      // den kan gå in i dem. Krymp den då till platsen som finns, men aldrig in i innehållet; titeln
-      // kortas sedan med … (fitTitle).
-      const centre = box.x + box.w / 2;
-      const own = [...content, ...nodes.filter(n => n.x + n.w / 2 > box.x && n.x + n.w / 2 < box.x + box.w
-        && n.y + n.h / 2 > box.y && n.y + n.h / 2 < box.y + box.h)];
+      const title = g.querySelector(':scope > g.cluster-label');
       const pad = 2 * margin * scale;
-      const others = [
-        ...clusters.filter(o => o !== c).map(o => frame(o.g)).filter(o => !inside(o, box) && !inside(box, o)),
-        ...nodes.filter(n => !own.includes(n)),
-      ].filter(o => o.y < box.y + box.h && box.y < o.y + o.h);
-      if (own.length) {
+      if (titles) {
+        // Grannarna på samma höjd: grupper som varken ligger i den här eller runt den, och noder utanför.
+        const centre = box.x + box.w / 2;
+        const own = [...content, ...nodes.filter(n => n.x + n.w / 2 > box.x && n.x + n.w / 2 < box.x + box.w
+          && n.y + n.h / 2 > box.y && n.y + n.h / 2 < box.y + box.h)];
+        const frames = clusters.filter(o => o !== c).map(o => frame(o.g));
+        const others = [...frames.filter(o => !inside(o, box) && !inside(box, o)), ...nodes.filter(n => !own.includes(n))]
+          .filter(o => o.y < box.y + box.h && box.y < o.y + o.h);
         const leftWall = Math.max(-Infinity, ...others.filter(o => o.x + o.w / 2 < centre).map(o => o.x + o.w + margin * scale));
         const rightWall = Math.min(Infinity, ...others.filter(o => o.x + o.w / 2 >= centre).map(o => o.x - margin * scale));
-        const shrinkLeft = Math.min(leftWall - box.x, Math.min(...own.map(o => o.x)) - pad - box.x);
-        const shrinkRight = Math.min(box.x + box.w - rightWall, box.x + box.w - pad - Math.max(...own.map(o => o.x + o.w)));
-        if (d.left <= 0 && shrinkLeft > 0.5) d.left = -shrinkLeft;
-        if (d.right <= 0 && shrinkRight > 0.5) d.right = -shrinkRight;
+        // Mermaid (ELK) gör en grupp bred nog för hela titeln men lägger grannarna som om den vore
+        // smal, så den kan gå in i dem. Krymp den då till platsen som finns, aldrig in i innehållet.
+        if (own.length) {
+          const shrinkLeft = Math.min(leftWall - box.x, Math.min(...own.map(o => o.x)) - pad - box.x);
+          const shrinkRight = Math.min(box.x + box.w - rightWall, box.x + box.w - pad - Math.max(...own.map(o => o.x + o.w)));
+          if (d.left <= 0 && shrinkLeft > 0.5) d.left = -shrinkLeft;
+          if (d.right <= 0 && shrinkRight > 0.5) d.right = -shrinkRight;
+        }
+        // Titeln och knappen behöver plats: väx in i luften bredvid (dagre lämnar luft mellan
+        // grupperna), men inte in i grannarna och inte ut ur gruppen runt omkring. Det som ändå inte
+        // ryms kortas med … (fitTitle).
+        const width = title ? titleWidth(title) : 0;
+        const missing = width + room + pad - (box.w + d.left + d.right);
+        if (width && missing > 0.5) {
+          const parent = frames.filter(o => inside(box, o)).sort((a, b) => a.w * a.h - b.w * b.h)[0];
+          const lw = parent ? Math.max(leftWall, parent.x + pad) : leftWall;
+          const rw = parent ? Math.min(rightWall, parent.x + parent.w - pad) : rightWall;
+          const spaceLeft = Math.max(0, box.x - d.left - lw);
+          const spaceRight = Math.max(0, rw - (box.x + box.w + d.right));
+          let left = Math.min(spaceLeft, missing / 2);
+          const right = Math.min(spaceRight, missing - left);
+          left = Math.min(spaceLeft, missing - right);
+          d.left += left;
+          d.right += right;
+        }
       }
-      const title = g.querySelector(':scope > g.cluster-label');
       if (Math.max(Math.abs(d.left), Math.abs(d.right), d.top, d.bottom) < 0.5) {
-        if (title) fitTitle(title, frame(g), titleRoom);
+        if (titles && title) fitTitle(title, frame(g), room, pad);
         return;
       }
       // Rutor som ligger mot gruppens kant följer med åt det hållet (ram, rubrikfält, innehåll).
@@ -192,26 +215,40 @@
         title.setAttribute('transform', m
           ? `matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e + dx} ${m.f + dy})`
           : `translate(${dx} ${dy})`);
-        fitTitle(title, frame(g), titleRoom);
+        if (titles) fitTitle(title, frame(g), room, pad);
       }
       grown++;
     });
     return grown;
   };
 
+  /** Texten som syns i en grupptitel: HTML-etikett (foreignObject) eller SVG-text. */
+  const titleText = title => title.querySelector('p, span.nodeLabel, div') || title.querySelector('text');
+
+  /** Bredden (skärm-px) på texten själv, inte på ramen runt den. */
+  const textWidth = shown => {
+    if (shown.localName !== 'div' && !shown.closest('foreignObject')) return shown.getBoundingClientRect().width;
+    const r = document.createRange();
+    r.selectNodeContents(shown);
+    return r.getBoundingClientRect().width;
+  };
+
+  const titleWidth = title => {
+    const shown = titleText(title);
+    return shown ? textWidth(shown) : 0;
+  };
+
   /**
-   * Gruppens titel ryms i gruppen med `room` (skärm-px) fritt på båda sidor, för knappen i hörnet.
-   * Är den för bred kortas den med … och hela titeln visas när musen hålls över den. Gruppen görs
-   * inte bredare för titeln: Mermaid lägger grannarna tätt intill, så den skulle växa in i dem.
+   * Gruppens titel ryms i gruppen `box`: `pad` (skärm-px) till vänster och `room` till höger, där
+   * knappen sitter. Titeln står mitt på gruppen när det finns plats för knappen på båda sidor,
+   * annars så långt till höger som knappen tillåter. Är den för bred kortas den med … och hela
+   * titeln visas när musen hålls över den.
    */
-  const fitTitle = (title, box, room) => {
-    // Texten som syns: HTML-etikett (foreignObject) eller SVG-text.
-    const shown = title.querySelector('p, span.nodeLabel, div') || title.querySelector('text');
+  const fitTitle = (title, box, room, pad = 0) => {
+    const shown = titleText(title);
     if (!shown) return;
-    const width = () => (shown.localName === 'div' || shown.closest('foreignObject')
-      ? (() => { const r = document.createRange(); r.selectNodeContents(shown); return r.getBoundingClientRect().width; })()
-      : shown.getBoundingClientRect().width);
-    const max = Math.max(box.w - 2 * room, 0);
+    const width = () => textWidth(shown);
+    const max = Math.max(box.w - room - pad, 0);
     const texts = [];
     const walk = n => { if (n.nodeType === 3) { if (n.data.trim()) texts.push(n); } else n.childNodes.forEach(walk); };
     walk(shown);
@@ -231,11 +268,13 @@
       title.insertBefore(tip, title.firstChild);
       shown.closest('div')?.setAttribute('title', full);
     }
-    // Ny bredd: håll titeln mitt på gruppen och ramen kring HTML-texten lika bred som texten.
+    // Ramen kring HTML-texten lika bred som texten, och titeln mitt på gruppen om knappen får plats.
     const fo = title.querySelector('foreignObject');
-    if (fo) fo.setAttribute('width', width() / (fo.getScreenCTM() || { a: 1 }).a + 2);
+    const w = width();
+    if (fo) fo.setAttribute('width', w / (fo.getScreenCTM() || { a: 1 }).a + 2);
     const r = (fo || shown).getBoundingClientRect();
-    const dx = (box.x + box.w / 2 - (r.left + r.width / 2)) / (title.parentNode.getScreenCTM() || { a: 1 }).a;
+    const target = w + 2 * room <= box.w ? box.x + box.w / 2 : box.x + box.w - room - w / 2;
+    const dx = (target - (r.left + r.width / 2)) / (title.parentNode.getScreenCTM() || { a: 1 }).a;
     if (Math.abs(dx) < 0.25) return;
     const m = title.transform.baseVal.consolidate()?.matrix;
     title.setAttribute('transform', m

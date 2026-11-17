@@ -48,6 +48,8 @@
   let fitNext = false;
   // Tema från inställningarna: 'auto' (eller inget) följer VS Codes ljusa/mörka tema.
   let theme = { theme: 'auto', themeVariables: undefined };
+  // Inställningen mermaidTree.preview.shortenLongGroupTitles: håll långa grupptitlar inom gruppens lucka.
+  let shortenLongGroupTitles = true;
 
   const size = () => ({ w: stage.clientWidth, h: stage.clientHeight });
 
@@ -370,7 +372,7 @@
       // En vald piltext är bara ett löpnummer: ändras piltexterna skulle numret peka på en annan pil.
       if (edgeTextsBefore && edgeTextsBefore.join('\n') !== Labels.edgeTexts(svg).map(t => t.text).join('\n')) selected = null;
       Labels.spread(svg, Labels.axisFor(text));
-      const grown = Labels.fitClusters(svg, 4, TOGGLE_SIZE + 8);
+      const grown = Labels.fitClusters(svg, 4, TOGGLE_SIZE + 8, { titles: shortenLongGroupTitles });
       const vb = (svg.getAttribute('viewBox') || '0 0 100 100').split(/[\s,]+/).map(Number);
       base = { x: vb[0], y: vb[1], w: vb[2] || 1, h: vb[3] || 1 };
       // En grupp längst ut kan ha vuxit utanför Mermaids ram.
@@ -513,6 +515,7 @@
       const setting = msg.theme || 'auto';
       if (setting !== settingTheme) { settingTheme = setting; themeSelect.value = setting; }
       theme = { theme: themeSelect.value, themeVariables: msg.themeVariables };
+      shortenLongGroupTitles = msg.shortenLongGroupTitles !== false;
       if (msg.fit) { fitNext = true; selected = null; }
       render(msg.text);
     }

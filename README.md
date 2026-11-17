@@ -51,6 +51,10 @@ Other diagram types are shown in the preview but have no tree yet.
   Right-click the preview for **Collapse All in Diagram** and **Expand All in Diagram**.
 - In sequence diagrams, click a block's keyword (`alt`, `loop` …) to collapse the whole block, its title to
   collapse its main branch, or a branch title (`[else …]`) to collapse that branch.
+- **Long group titles**: Mermaid makes a group wide enough for its title but can place its neighbours as if
+  it were narrow. The preview keeps the group within its space and shortens the title with …; hover to see
+  all of it, or write `<br>` in the title to break it yourself. Turn off `mermaidTree.preview.shortenLongGroupTitles`
+  to draw groups exactly as Mermaid does.
 - Hiding and collapsing never change the source file. What is hidden or collapsed is kept while the file is
   open; turn on `mermaidTree.rememberHiddenState` to remember it per file in the workspace.
 
@@ -158,7 +162,7 @@ changing the setting. The `neo` look shows best with the `neo` theme. The ELK la
 `elk.force` place nodes by force rather than in rows, so they can look scattered; that is how Mermaid draws
 them.
 
-The gear in the tree's title bar opens all of the extension's settings.
+**Settings** in **Quick Access**, under the tree, opens all of the extension's settings.
 
 ## Development
 

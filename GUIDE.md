@@ -193,8 +193,8 @@ You get a warning: `orderline` and `OrderLine` differ only in letter case, and M
 different classes. The same goes for names that differ only in word separation (`order_line`), and for names
 with a Cyrillic or Greek letter that looks Latin. Press Ctrl+. on the warning for a quick fix.
 
-To check a naming style, set `mermaidTree.namingStyle` to `camelCase`, `PascalCase` or `snake_case`. The gear in
-the tree's title bar opens all the extension's settings.
+To check a naming style, set `mermaidTree.namingStyle` to `camelCase`, `PascalCase` or `snake_case`. **Settings** in
+**Quick Access**, under the tree, opens all the extension's settings.
 
 ## Where next
 

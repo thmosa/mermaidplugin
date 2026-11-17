@@ -452,7 +452,11 @@ class Preview {
     const docUri = this.state.doc.uri;
     this.panel.title = `Preview: ${docUri.scheme === COMBINED_SCHEME ? docUri.path.slice(1) : vscode.workspace.asRelativePath(docUri)}`;
     const cfg = vscode.workspace.getConfiguration('mermaidTree.preview');
-    const theme = { theme: cfg.get<string>('theme', 'auto'), themeVariables: cfg.get<Record<string, unknown>>('themeVariables', {}) };
+    const theme = {
+      theme: cfg.get<string>('theme', 'auto'),
+      themeVariables: cfg.get<Record<string, unknown>>('themeVariables', {}),
+      shortenLongGroupTitles: cfg.get<boolean>('shortenLongGroupTitles', true),
+    };
     // En annan fil än förra gången: visa hela diagrammet (Fit) i stället för att behålla zoomen.
     const uri = this.state.doc.uri.toString();
     const fit = uri !== this.shown;

@@ -98,6 +98,11 @@
           "default": {},
           "markdownDescription": "Mermaid theme variables for the preview, for example `{ \"primaryColor\": \"#ffcc00\", \"lineColor\": \"#888888\" }`. Works best with the theme `base`. See [Mermaid's theming](https://mermaid.js.org/config/theming.html) for all variables."
         },
+        "mermaidTree.preview.shortenLongGroupTitles": {
+          "type": "boolean",
+          "default": true,
+          "description": "Shorten long group titles with … so the groups fit the rendering: Mermaid makes a group wide enough for its whole title but can place its neighbours as if it were narrow, so the group shrinks to the space it got. Hover over a shortened title to see all of it. Turn off to draw groups and titles exactly as Mermaid does, even where they overlap."
+        },
         "mermaidTree.namingStyle": {
           "type": "string",
           "enum": [
@@ -174,7 +179,7 @@
       },
       {
         "view": "mermaidTree.previewButton",
-        "contents": "[Preview Diagram](command:mermaidTree.openPreview)"
+        "contents": "[Preview Diagram](command:mermaidTree.openPreview)\n[Settings](command:mermaidTree.openSettings)"
       }
     ],
     "commands": [
@@ -366,11 +371,6 @@
           "command": "mermaidTree.clearSearch",
           "when": "view == mermaidTree.structure && mermaidTree.searching",
           "group": "navigation@4"
-        },
-        {
-          "command": "mermaidTree.openSettings",
-          "when": "view == mermaidTree.structure",
-          "group": "navigation@9"
         }
       ],
       "webview/context": [
