@@ -317,3 +317,23 @@ test('delad state: varningen länkar till den andra gruppen', () => {
   const body = src.slice(src.indexOf(`check('sharedStates')`));
   assert.match(body.slice(0, body.indexOf('found.push(d)')), /relatedInformation = issue\.related\.map/);
 });
+
+test('skiftläge: varningen har en egen kod och en snabbfix som använder den andra stavningen', () => {
+  const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
+  assert.match(src, /caseConflicts\(text, m\)[\s\S]{0,200}d\.code = CASE/, 'varningen saknar kod');
+  assert.ok(src.includes('d.code === CASE') && src.includes('caseFixChoices('), 'ingen snabbfix för varningen');
+});
+
+test('knapp i sidofältet: en liten vy under trädet visar alltid Preview Diagram', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
+  const views = pkg.contributes.views.mermaidTree;
+  assert.deepEqual(views.map(v => v.id), ['mermaidTree.structure', 'mermaidTree.previewButton'], 'vyn ska ligga under trädet');
+  const [tree, button] = views;
+  assert.ok(button.initialSize < tree.initialSize, 'vyn ska vara liten från början');
+  assert.equal(button.name, 'Quick Access', 'rubriken ska säga vad vyn är till för');
+  const welcome = pkg.contributes.viewsWelcome.find(w => w.view === 'mermaidTree.previewButton');
+  assert.match(welcome?.contents ?? '', /\[Preview Diagram\]\(command:mermaidTree\.openPreview\)/);
+  // Vyn måste ha en dataleverantör som alltid är tom, annars visas ett fel i stället för knappen.
+  assert.match(src, /registerTreeDataProvider\('mermaidTree\.previewButton'/);
+});

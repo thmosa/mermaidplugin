@@ -559,6 +559,11 @@ export function activate(ctx: vscode.ExtensionContext) {
   const view = vscode.window.createTreeView('mermaidTree.structure', {
     treeDataProvider: tree, manageCheckboxStateManually: true, showCollapseAll: true,
   });
+  // En vy under trädet som alltid är tom, så att VS Code alltid visar dess knapp (viewsWelcome).
+  ctx.subscriptions.push(vscode.window.registerTreeDataProvider('mermaidTree.previewButton', {
+    getTreeItem: (i: never) => i,
+    getChildren: () => [],
+  }));
 
   const combined = new CombinedViews();
 
