@@ -162,13 +162,7 @@
       "mermaidTree": [
         {
           "id": "mermaidTree.structure",
-          "name": "Mermaid Structure",
-          "initialSize": 6
-        },
-        {
-          "id": "mermaidTree.previewButton",
-          "name": "Quick Access",
-          "initialSize": 1
+          "name": "Mermaid Structure"
         }
       ]
     },
@@ -176,10 +170,6 @@
       {
         "view": "mermaidTree.structure",
         "contents": "Open a .mmd or .mermaid file to see the diagram structure.\n[Preview Diagram](command:mermaidTree.openPreview)"
-      },
-      {
-        "view": "mermaidTree.previewButton",
-        "contents": "[Preview Diagram](command:mermaidTree.openPreview)\n[Settings](command:mermaidTree.openSettings)"
       }
     ],
     "commands": [
@@ -199,7 +189,7 @@
         "command": "mermaidTree.showAll",
         "title": "Show All",
         "category": "Mermaid Tree",
-        "icon": "$(eye)"
+        "icon": "$(check-all)"
       },
       {
         "command": "mermaidTree.search",
@@ -311,6 +301,14 @@
         "icon": "$(edit)"
       }
     ],
+    "keybindings": [
+      {
+        "command": "mermaidTree.openPreview",
+        "key": "ctrl+k v",
+        "mac": "cmd+k v",
+        "when": "editorLangId == mermaid"
+      }
+    ],
     "menus": {
       "editor/context": [
         {
@@ -371,6 +369,11 @@
           "command": "mermaidTree.clearSearch",
           "when": "view == mermaidTree.structure && mermaidTree.searching",
           "group": "navigation@4"
+        },
+        {
+          "command": "mermaidTree.openSettings",
+          "when": "view == mermaidTree.structure",
+          "group": "navigation@9"
         }
       ],
       "webview/context": [

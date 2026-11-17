@@ -8,7 +8,8 @@ shows: hide parts, collapse groups and focus on one chain of states or classes, 
 ## Getting started
 
 1. Open a `.mmd` or `.mermaid` file.
-2. Click **Preview Diagram** in the editor's title bar. The preview opens beside the editor.
+2. Click **Preview Diagram** (the preview icon, a page with a magnifier) in the editor's title bar, or press
+   **Ctrl+K V** (Cmd+K V on macOS) as for Markdown. The preview opens beside the editor.
 3. Open **Mermaid Tree** in the activity bar to see the diagram's structure. Uncheck an item to hide it,
    or click the target button on a row to focus on it.
 
@@ -162,7 +163,7 @@ changing the setting. The `neo` look shows best with the `neo` theme. The ELK la
 `elk.force` place nodes by force rather than in rows, so they can look scattered; that is how Mermaid draws
 them.
 
-**Settings** in **Quick Access**, under the tree, opens all of the extension's settings.
+The gear in the tree's title bar opens all of the extension's settings.
 
 ## Development
 

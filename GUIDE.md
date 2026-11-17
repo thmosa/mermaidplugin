@@ -33,7 +33,7 @@ stateDiagram-v2
   Delivered --> [*]
 ```
 
-Click **Preview Diagram** in the editor's title bar. The preview opens beside the editor:
+Click **Preview Diagram** in the editor's title bar, or press **Ctrl+K V**. The preview opens beside the editor:
 
 ![The order flow in the preview](images/state-full.png)
 
@@ -49,7 +49,7 @@ Try moving around the preview: Ctrl+scroll or pinch to zoom, drag to pan, `0` to
 In the tree, uncheck **Abandoned**. It disappears from the preview, together with its transitions. The file
 does not change: hiding only affects what the preview draws.
 
-Check it again to bring it back. **Show All** (the eye in the tree's title bar) shows everything that is hidden.
+Check it again to bring it back. **Show All** (the double check mark in the tree's title bar) shows everything that is hidden.
 
 ## 3. Collapse a group
 
@@ -193,8 +193,8 @@ You get a warning: `orderline` and `OrderLine` differ only in letter case, and M
 different classes. The same goes for names that differ only in word separation (`order_line`), and for names
 with a Cyrillic or Greek letter that looks Latin. Press Ctrl+. on the warning for a quick fix.
 
-To check a naming style, set `mermaidTree.namingStyle` to `camelCase`, `PascalCase` or `snake_case`. **Settings** in
-**Quick Access**, under the tree, opens all the extension's settings.
+To check a naming style, set `mermaidTree.namingStyle` to `camelCase`, `PascalCase` or `snake_case`. The gear in
+the tree's title bar opens all the extension's settings.
 
 ## Where next
 

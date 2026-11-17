@@ -122,15 +122,31 @@ test('grammatik: create och destroy i sequence diagram färgas', () => {
   for (const word of ['create', 'destroy']) assert.match(`  ${word} participant X`, re, word);
 });
 
-test('Quick Access: knappen Settings under Preview Diagram öppnar tilläggets inställningar', () => {
+test('förhandsvisning: lätt att hitta, med Ctrl+K V som i Markdown och inget öga som liknar den', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const cmd = id => pkg.contributes.commands.find(c => c.command === id);
+  assert.equal(cmd('mermaidTree.openPreview').icon, '$(open-preview)');
+  // Ögat ser ut som "visa diagrammet"; Show All bockar i allt i trädet.
+  assert.equal(cmd('mermaidTree.showAll').icon, '$(check-all)');
+  const key = (pkg.contributes.keybindings ?? []).find(k => k.command === 'mermaidTree.openPreview');
+  assert.equal(key?.key, 'ctrl+k v');
+  assert.equal(key.mac, 'cmd+k v');
+  assert.equal(key.when, 'editorLangId == mermaid');
+  const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+  assert.match(readme, /## Getting started[\s\S]*?Ctrl\+K V/);
+});
+
+test('meny: kugghjulet sist i panelens rubrik öppnar tilläggets inställningar', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const cmd = pkg.contributes.commands.find(c => c.command === 'mermaidTree.openSettings');
   assert.ok(cmd, 'kommandot saknas');
   assert.equal(cmd.title, 'Settings');
-  // Knappen ligger i Quick Access, som alltid syns, och inte längre i trädets rubrik.
-  const welcome = pkg.contributes.viewsWelcome.find(w => w.view === 'mermaidTree.previewButton');
-  assert.match(welcome.contents, /^\[Preview Diagram\]\(command:mermaidTree\.openPreview\)\n\[Settings\]\(command:mermaidTree\.openSettings\)$/);
-  assert.ok(!pkg.contributes.menus['view/title'].some(m => m.command === 'mermaidTree.openSettings'), 'inte i trädets rubrik');
+  assert.equal(cmd.icon, '$(gear)');
+  const menu = pkg.contributes.menus['view/title'].filter(m => /^navigation/.test(m.group));
+  const order = g => Number(g.split('@')[1]);
+  const gear = menu.find(m => m.command === 'mermaidTree.openSettings');
+  assert.match(gear?.when ?? '', /view == mermaidTree\.structure/);
+  assert.ok(menu.every(m => m === gear || order(m.group) < order(gear.group)), 'kugghjulet ska ligga sist');
   // Kommandot öppnar inställningarna filtrerade på tillägget.
   const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
   assert.match(src, /registerCommand\('mermaidTree\.openSettings'[^]*?workbench\.action\.openSettings[^]*?@ext:/);
@@ -333,16 +349,11 @@ test('skiftläge: varningen har en egen kod och en snabbfix som använder den an
   assert.ok(src.includes('d.code === CASE') && src.includes('caseFixChoices('), 'ingen snabbfix för varningen');
 });
 
-test('knapp i sidofältet: en liten vy under trädet visar alltid Preview Diagram', () => {
+test('sidofältet: bara trädet, så att ikonerna i dess rubrik alltid syns', () => {
+  // Med flera vyer visar VS Code rubrikens ikoner bara när musen är över vyn.
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const src = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
-  const views = pkg.contributes.views.mermaidTree;
-  assert.deepEqual(views.map(v => v.id), ['mermaidTree.structure', 'mermaidTree.previewButton'], 'vyn ska ligga under trädet');
-  const [tree, button] = views;
-  assert.ok(button.initialSize < tree.initialSize, 'vyn ska vara liten från början');
-  assert.equal(button.name, 'Quick Access', 'rubriken ska säga vad vyn är till för');
-  const welcome = pkg.contributes.viewsWelcome.find(w => w.view === 'mermaidTree.previewButton');
-  assert.match(welcome?.contents ?? '', /\[Preview Diagram\]\(command:mermaidTree\.openPreview\)/);
-  // Vyn måste ha en dataleverantör som alltid är tom, annars visas ett fel i stället för knappen.
-  assert.match(src, /registerTreeDataProvider\('mermaidTree\.previewButton'/);
+  assert.deepEqual(pkg.contributes.views.mermaidTree.map(v => v.id), ['mermaidTree.structure']);
+  assert.deepEqual(pkg.contributes.viewsWelcome.map(w => w.view), ['mermaidTree.structure']);
+  assert.doesNotMatch(src, /previewButton/);
 });
