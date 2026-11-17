@@ -2,6 +2,7 @@
 // så att de kan testas direkt.
 
 import { DiagramModel } from './parser';
+import { NamingStyle, toStyle } from './naming';
 
 export interface CaseConflict {
   /** 0-baserad rad och kolumner [start, end) för id:t i texten. */
@@ -76,4 +77,15 @@ export function caseConflicts(text: string, model: DiagramModel): CaseConflict[]
     }
   }
   return out.sort((a, b) => a.line - b.line || a.start - b.start);
+}
+
+/**
+ * Snabbfixen för en krock i skiftläge: de andra stavningarna, att använda överallt i stället.
+ * Den som följer namnstilen kommer först och är förvald.
+ */
+export function caseFixChoices(conflict: CaseConflict, style: NamingStyle): { name: string; preferred: boolean }[] {
+  const follows = (name: string) => style !== 'off' && toStyle(name, style) === name;
+  return [...conflict.similar]
+    .sort((a, b) => Number(follows(b)) - Number(follows(a)))
+    .map(name => ({ name, preferred: follows(name) }));
 }

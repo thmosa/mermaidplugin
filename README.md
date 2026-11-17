@@ -82,6 +82,7 @@ Other diagram types are shown in the preview but have no tree yet.
 
 - **Syntax errors** from Mermaid itself, on the right line.
 - **Letter case**: ids that differ only in case, since Mermaid treats `Order` and `order` as different names.
+  The quick fix uses one spelling everywhere; the one that follows `mermaidTree.namingStyle` comes first.
 - **Similar names** that differ only in word separation, such as `orderplanned` and `order_planned`, with a
   quick fix that uses one of them everywhere.
 - **Look-alike letters**: names with Cyrillic, Greek or full-width letters that look Latin, such as `Оrder`

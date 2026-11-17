@@ -50,3 +50,24 @@ test('versaler: sequence markerar deltagare men inte ord i meddelandetexten', ()
   const text = 'sequenceDiagram\n  Order->>DB: Order sparas\n  order->>DB: order';
   assert.deepEqual(find(text).map(x => [x.line, at(text, x)]), [[1, 'Order'], [2, 'order']]);
 });
+
+// ------------------------------------------------------------ snabbfix: använd det andra namnet
+
+const { caseFixChoices } = require('../out/diagnostics');
+
+test('skiftläge: snabbfixen erbjuder de andra stavningarna, och den som följer namnstilen är förvald', () => {
+  const text = 'stateDiagram-v2\n  Jaspel --> Pelmora\n  jaspel --> Pelmora';
+  const [lower] = find(text).filter(c => c.id === 'jaspel');
+  assert.deepEqual(caseFixChoices(lower, 'PascalCase'), [{ name: 'Jaspel', preferred: true }]);
+  assert.deepEqual(caseFixChoices(lower, 'camelCase'), [{ name: 'Jaspel', preferred: false }]);
+  const [upper] = find(text).filter(c => c.id === 'Jaspel');
+  assert.deepEqual(caseFixChoices(upper, 'camelCase'), [{ name: 'jaspel', preferred: true }]);
+  assert.deepEqual(caseFixChoices(upper, 'off'), [{ name: 'jaspel', preferred: false }]);
+});
+
+test('skiftläge: med flera stavningar kommer den som följer stilen först', () => {
+  const text = 'flowchart LR\n  orderLine --> a\n  ORDERLINE --> a\n  OrderLine --> a';
+  const [c] = find(text).filter(c => c.id === 'ORDERLINE');
+  assert.deepEqual(caseFixChoices(c, 'PascalCase').map(x => x.name), ['OrderLine', 'orderLine']);
+  assert.equal(caseFixChoices(c, 'PascalCase')[0].preferred, true);
+});

@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { FlowEdge, visibility, nodeKey, edgeKey, subgraphKey, collapseKey } from './parser';
 import { AnyModel, parseDiagram, renderInfo } from './diagram';
 import { SequenceModel, SequenceRender, blockSuppressor } from './sequenceParser';
-import { caseConflicts } from './diagnostics';
+import { caseConflicts, caseFixChoices } from './diagnostics';
 import { checkSyntax } from './mermaidCheck';
 import { syntaxDiagnostic } from './syntax';
 import { Item, children, parentOf, initialState, countMatches, groupToggles, collapsibleGroups } from './tree';
@@ -623,6 +623,7 @@ export function activate(ctx: vscode.ExtensionContext) {
   const LOOKALIKE = 'lookalike';
   const SIMILAR = 'similar';
   const SHARED = 'sharedState';
+  const CASE = 'letterCase';
   /** Om en kontroll av namn är påslagen i inställningarna. */
   const check = (name: string) => vscode.workspace.getConfiguration('mermaidTree.checks').get<boolean>(name, true);
   const FIX_ALL = vscode.CodeActionKind.SourceFixAll.append('mermaidTree');
@@ -641,7 +642,11 @@ export function activate(ctx: vscode.ExtensionContext) {
     if (!doc || !m) return;
     const version = doc.version;
     const text = doc.getText();
-    const found = (check('letterCase') ? caseConflicts(text, m) : []).map(c => toDiagnostic(c, 'Mermaid Tree'));
+    const found = (check('letterCase') ? caseConflicts(text, m) : []).map(c => {
+      const d = toDiagnostic(c, 'Mermaid Tree');
+      d.code = CASE;
+      return d;
+    });
     if (check('similarNames')) {
       for (const issue of similarNames(text, m, namingStyle())) {
         const d = toDiagnostic(issue, 'Mermaid Tree');
@@ -1001,6 +1006,21 @@ export function activate(ctx: vscode.ExtensionContext) {
             a.isPreferred = true;
             a.command = { title: a.title, command: 'mermaidTree.fixLookalike', arguments: [doc.uri, issue.id] };
             actions.push(a);
+          }
+        }
+        // Namn som bara skiljer sig i stora och små bokstäver: använd den andra stavningen överallt.
+        const cases = context.diagnostics.filter(d => d.code === CASE);
+        if (cases.length) {
+          const found = caseConflicts(text, parseDiagram(text));
+          for (const d of cases) {
+            const issue = found.find(i => i.line === d.range.start.line && i.start === d.range.start.character);
+            for (const choice of issue ? caseFixChoices(issue, style) : []) {
+              const a = new vscode.CodeAction(`Use "${choice.name}" instead of "${issue!.id}"`, vscode.CodeActionKind.QuickFix);
+              a.diagnostics = [d];
+              a.isPreferred = choice.preferred;
+              a.command = { title: a.title, command: 'mermaidTree.useName', arguments: [doc.uri, issue!.id, choice.name] };
+              actions.push(a);
+            }
           }
         }
         // Samma state i två sammansatta states: ge den ett eget namn i gruppen där den inte ritas.
